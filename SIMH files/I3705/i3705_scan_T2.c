@@ -104,7 +104,6 @@
 #include "sim_defs.h"
 #include "i3705_defs.h"
 #include "i3705_sdlc.h"
-
 #include "i3705_Eregs.h"               /* External regs defs */
 #include <signal.h>
 #include <ctype.h>
@@ -115,6 +114,10 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <termios.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <assert.h>
 
 #define MAX_TBAR   3                   // ICW table size (4 line sets)
 
@@ -150,11 +153,56 @@ uint8_t icw_lne_stat[MAX_TBAR];          /* Line state: RESET, TX, RX */
 uint8_t icw_pcf_new = 0x0;
 uint8_t icw_pcf_mod = 0x00;
 int8 CS2_req_L2_int = OFF;
-uint8_t BLU_buf[65536];                   /* DLC header + TH + RH + RU + DLC trailer */
+
 pthread_mutex_t icw_lock;              /* ICW lock (0 - 45)  */
 extern pthread_mutex_t r77_lock;       /* I/O reg x'77' lock */
 
-void proc_BLU(char *BLU_buf, int j);
+int openSerial () {
+  int ret;
+  int fd;
+  const char * devStr = "/dev/ttyUSB0";
+  struct termios options;
+  unsigned char ch;
+  /* open the port */
+  fprintf(stderr, "devStr=%s\n", devStr);
+  fd = open(devStr, O_RDWR | O_NOCTTY | O_NDELAY);
+  fprintf(stderr, "open fd=%d", fd);
+  ret = fcntl(fd, F_SETFL, 0);
+  if (ret == -1) {
+    perror("Error:");
+  }
+  fprintf(stderr, "fcntl ret=%d",ret);
+
+
+
+/* get the current options */
+  ret = tcgetattr(fd, &options);
+  fprintf(stderr, "tcgetattr ret=%d",ret);
+  
+  options.c_cflag &= ~CSIZE;
+  options.c_cflag &= ~CSTOPB;
+  options.c_cflag &= ~PARENB;
+  options.c_cflag &= ~PARODD;
+  //options.c_cflag |= config;
+  
+  cfsetispeed(&options, B2400);
+  cfsetospeed(&options, B2400);
+  
+  /* set raw input, 1 second timeout */
+  options.c_cflag     |= (CLOCAL | CREAD);
+  options.c_lflag     &= ~(ICANON | ECHO | ECHOE | ISIG);
+  options.c_oflag     &= ~OPOST;
+  options.c_cc[VMIN]  = 0;
+  options.c_cc[VTIME] = 1;
+  
+  /* set the options */
+  ret=tcsetattr(fd, TCSANOW, &options);
+  sleep(2); //required to make flush work, for some reason
+  tcflush(fd,TCIOFLUSH);
+  fprintf(stderr, "tcsetattr ret=%d\n", ret);
+  return fd;
+}
+
 void Put_ICW(int i);
 void Get_ICW(int i);
 
@@ -164,11 +212,14 @@ void Get_ICW(int i);
 void *CS2_thread(void *arg) {
    int t;                              // ICW table index pointer
    int j = 0;                          // Tx/Rx buffer index pointer
-   int i,c;
+   int i,c, fd, first_char_received=0, escape = 0;
    register char *s;
-
+   int start_of_frame = 1;
+   char end_frame[2] = {0xff,0xef};
+   // open serial port 
+   fd = openSerial();
    fprintf(stderr, "\nCS2: thread %ld started succesfully...\n",syscall(SYS_gettid));
-
+   int ch, ret;
    while(1) {
 //    for (i = 0; i < MAX_TBAR; i++) {     // Pending multiple line support !!!
          t = 0;                            // Temp for ONE line set.
@@ -179,8 +230,7 @@ void *CS2_thread(void *arg) {
          pthread_mutex_lock(&icw_lock);
          if (icw_pcf[t] != icw_pcf_new) {  // pcf changed by NCP ?
             if (debug_reg & 0x40)   // Trace PCF state ?
-               fprintf(trace, "\n>>> CS2[%1X]: NCP changed PCF to %1X \n\r",
-                       icw_pcf[t], icw_pcf_new);
+	      //fprintf(stderr, "\n>>> CS2[%1X]: NCP changed PCF to %1X \n\r",icw_pcf[t], icw_pcf_new);
             if (icw_pcf_new == 0x0)        // NCP changed PCF = 0 ?
                icw_lne_stat[t] = RESET;    // Line state = RESET
             icw_pcf_prev[t] = icw_pcf[t];  // Save current pcf and
@@ -190,8 +240,8 @@ void *CS2_thread(void *arg) {
          switch (icw_pcf[t]) {
             case 0x0:                  // NO-OP
                if (icw_pcf_prev[t] != icw_pcf[t]) {
-                  if (debug_reg & 0x40)    // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		 //if (debug_reg & 0x40)    // Trace PCF state ?
+		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
          //      icw_lne_stat[t] = RESET;  // Line state = RESET
                icw_scf[t] &= 0x4A;     // Reset all check cond. bits.
@@ -200,7 +250,7 @@ void *CS2_thread(void *arg) {
             case 0x1:                  // Set mode
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)  // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 1 entered, next PCF will be 0 \n\r", icw_pcf[t]);
+		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = 1 entered, next PCF will be 0 \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 0...
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -210,7 +260,7 @@ void *CS2_thread(void *arg) {
             case 0x2:                  // Mon DSR on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 2 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = 2 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 4... (Via PCF = 0)
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -220,7 +270,7 @@ void *CS2_thread(void *arg) {
             case 0x3:                  // Mon RI or DSR on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 3 entered, next PCF will be 0 \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 3 entered, next PCF will be 0 \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 0...
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -232,8 +282,8 @@ void *CS2_thread(void *arg) {
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40) {  // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
-                     fprintf(trace, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
                   }
                }
                j = 0;                          // Reset buffer pointer
@@ -241,10 +291,11 @@ void *CS2_thread(void *arg) {
                   break;
                if (icw_lne_stat[t] == TX)      // Line is silent. Wait for NCP action.
                   break;
-
+	       ret = read (fd, &ch, 1);
                // Line state is receiving, wait for BFlag...
-               if (BLU_buf[j] == 0x7E) {       // x'7E' Bflag received ?
+               if (ret == 1) {                 // we got a character? That is the start of the frame.
                   icw_scf[t]  |= 0x04;         // Set flag detected. (NO Serv bit)
+		  icw_scf[t]  &= 0xBF;         // turn off service flag
                   icw_lcd[t]   = 0x9;          // LCD = 9 (SDLC 8-bit)
                   icw_pcf_new  = 0x6;          // Goto PCF = 6...
                   CS2_req_L2_int = ON;         // ...and issue a L2 int
@@ -254,17 +305,16 @@ void *CS2_thread(void *arg) {
             case 0x6:                  // Receive info-inhibit data interrupt
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;                              // Loop till inactive...
-               icw_pdf[t] = BLU_buf[j++];
+	       icw_pdf[t] = ch;
                if (debug_reg & 0x40) { // Trace PCF state ?
-                  fprintf(trace, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
-                  fprintf(trace, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+                  fprintf(stderr, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
+                  fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
                }
-               if (icw_pdf[t] == 0x7E) // Flag ?  Skip it.
-                  break ;
                icw_scf[t] |= 0x40;     // Set norm char serv flag
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                icw_pdf_reg = FILLED;
-               icw_pcf_new = 0x7;      // Goto PCF = 7...
+	       fprintf(stderr, "\n<<< CS2[%1X]: Rx Char interrupt = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+	       icw_pcf_new = 0x7;      // Goto PCF = 7...
                CS2_req_L2_int = ON;    // ...and issue a L2 int
                break;
 
@@ -273,16 +323,24 @@ void *CS2_thread(void *arg) {
                   break;                              // Loop till inactive...
 
                if (icw_pdf_reg == EMPTY) {   // NCP has read pdf ?
-                  // Check for Eflag (for transparency x'470F7E' CRC + EFlag)
-                  if ((BLU_buf[j - 2] == 0x47) &&    // CRC high
-                      (BLU_buf[j - 1] == 0x0F) &&    // CRC low
-                      (BLU_buf[j - 0] == 0x7E))  Eflg_rvcd = ON;
-                     else Eflg_rvcd = OFF;   // No Eflag
-
-                  icw_pdf[t] = BLU_buf[j++]; // Get received byte
+                  //   else Eflg_rvcd = OFF;   // No Eflag
+		  ret = read (fd, &ch, 1);
+		  if (ret == 0) break;
+		  if (ch == 0xff) {
+		    escape = 1;
+		    break;
+		  }
+		  if (escape) {
+		    if (ch == 0xef) { // End of frame marker
+		      ch = 0x7e;
+		      Eflg_rvcd = ON;
+		    }
+		    escape = 0;		    
+		  }
+                  icw_pdf[t] = ch; // Get received byte
                   if (debug_reg & 0x40) {    // Trace PCF state ?
-                     fprintf(trace, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(trace, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+                     fprintf(stderr, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
                   }
                   if (Eflg_rvcd == ON) {     // EFlag received ?
                      icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
@@ -291,6 +349,7 @@ void *CS2_thread(void *arg) {
                      CS2_req_L2_int = ON;    // Issue a L2 interrupt
                   } else {
                      icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
+		     fprintf(stderr, "\n<<< CS2[%1X]: Rx Char interrupt = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);     
                      icw_scf[t] |= 0x40;     // Set norm char serv flag
                      icw_pcf_new = 0x7;      // Stay in PCF = 7...
                      CS2_req_L2_int = ON;    // Issue a L2 interrupt
@@ -299,24 +358,37 @@ void *CS2_thread(void *arg) {
                break;
 
             case 0x8:                  // Transmit initial-turn RTS on
-               if (debug_reg & 0x40)   // Trace PCF state ?
-                  fprintf(trace, "\n>>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", icw_pcf[t]);
-               icw_scf[t] &= 0xFB;     // Reset flag detected flag
-               // CTS is now on.
-               icw_pcf_new = 0x9;      // Goto PCF = 9
-               j = 0;                  // Reset Tx buffer pointer.
-               // NO CS2_req_L2_int !
-               break;
+	      if (debug_reg & 0x40) {   // Trace PCF state ?
+                fprintf(stderr, "\n>>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", icw_pcf[t]);
+	        fprintf(stderr, "\n>>> CS2[%1X]: SCF=%02X \n\r", icw_pcf[t], icw_scf[t]);
+	      }
+	      icw_scf[t] &= 0xFB;     // Reset flag detected flag
+	      // CTS is now on.
+	      icw_pcf_new = 0x9;      // Goto PCF = 9
+	      j = 0;                  // Reset Tx buffer pointer.
+	      // NO CS2_req_L2_int !
+	      break;
 
             case 0x9:                  // Transmit normal
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;
                if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
                   if (debug_reg & 0x40) { // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = 9 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(trace, "\n>>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j);
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 9 (re-)entered \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n>>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j);
+		     fprintf(stderr, "\n>>> CS2[%1X]: SCF=%02X \n\r", icw_pcf[t], icw_scf[t]);
                   }
-                  BLU_buf[j++] = icw_pdf[t];
+		  if (icw_scf[t]&0x01) {   // send flag byte
+		    if (start_of_frame==1) {
+		      start_of_frame=0;
+		      break;
+		    } else {
+		      start_of_frame=1;
+		      write(fd, end_frame, 2);
+		    }
+		  } else {
+		    write(fd, &icw_pdf[t], 1);
+		  }
                   // Next byte please...
                   icw_pdf_reg = EMPTY; // Ask NCP for next byte
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
@@ -333,17 +405,9 @@ void *CS2_thread(void *arg) {
             case 0xC:                  // Transmit turnaround-turn RTS off
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
-
-                  // ******************************************************************
-                  proc_BLU(BLU_buf, j);   // Process received BLU and wait for response
-                  // ******************************************************************
-                  if (debug_reg & 0x20) {
-                     fprintf(trace, "\n>>> CS2[%1X]: BLU_buf = ", icw_pcf[t]);
-                     for (s = (char *) &BLU_buf[0], i = 0; i < 16; ++i, ++s)
-                        fprintf(trace, "%02X ", (int) *s & 0xFF);
-                     fprintf(trace, "\n");
-                  }
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		  // Send here end of frame here!
+		  
                   icw_lne_stat[t] = RX;   // Line turnaround to receiving...
                   j = 0;                  // Reset Rx buffer pointer.
                   icw_scf[t] |= 0x40;     // Set norm char serv flag
@@ -355,7 +419,7 @@ void *CS2_thread(void *arg) {
             case 0xD:                     // Transmit turnaround-keep RTS on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = D entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = D entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
                // NO CS2_req_L2_int !
                break;
@@ -366,7 +430,7 @@ void *CS2_thread(void *arg) {
             case 0xF:                  // Disable
                if (icw_pcf_prev[t] != icw_pcf[t]) {
                   if (debug_reg & 0x40)  // Trace PCF state ?
-                     fprintf(trace, "\n>>> CS2[%1X]: PCF = F entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = F entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
                icw_scf[t] |= 0x40;     // Set norm char serv flag
                icw_pcf_new = 0x0;      // Goto PCF = 0...
@@ -379,7 +443,7 @@ void *CS2_thread(void *arg) {
 
          if (CS2_req_L2_int) {         // CS2 L2 interrupt request ?
             if (debug_reg & 0x40)      // Trace PCF state ?
-               fprintf(trace, "\n>>> CS2[%1X]: SVCL2 interrupt issued for PCF = %1X \n\r",
+               fprintf(stderr, "\n>>> CS2[%1X]: SVCL2 interrupt issued for PCF = %1X \n\r",
                        icw_pcf_prev[t], icw_pcf_prev[t]);
             pthread_mutex_lock(&r77_lock);
  //         Eregs_Inp[0x77] |= 0x4000; // Indicate L2 scanner interrupt
@@ -391,9 +455,9 @@ void *CS2_thread(void *arg) {
          if (icw_pcf[t] != icw_pcf_new) {   // pcf state changed ?
             icw_pcf[t] = icw_pcf_new;       // set new current pcf
          }
-         if (debug_reg & 0x40)         // Trace Prev / Curr PCF state ?
-            fprintf(trace, "\n>>> CS2[%1X]: Next PCF = %1X \n\r",
-                    icw_pcf_prev[t], icw_pcf[t]);
+         //if (debug_reg & 0x40)         // Trace Prev / Curr PCF state ?
+         //   fprintf(stderr, "\n>>> CS2[%1X]: Next PCF = %1X \n\r",
+         //           icw_pcf_prev[t], icw_pcf[t]);
          // Release the ICW lock
          pthread_mutex_unlock(&icw_lock);
          usleep(1000);                 // Time window for NCP to set PCF.

@@ -733,7 +733,7 @@ ID32_OPT = -I ${ID32D}
 
 I3705D = I3705
 I3705 = ${I3705D}/i3705_cpu.c ${I3705D}/i3705_chan_T2.c ${I3705D}/i3705_scan_T2.c \
-	${I3705D}/i3705_panel.c ${I3705D}/i3705_sys.c ${I3705D}/i3705_sdlc.c \
+	${I3705D}/i3705_panel.c ${I3705D}/i3705_sys.c \
 	${I3705D}/i3705_client.c
 I3705_OPT = -I ${I3705D}
 
