@@ -239,6 +239,8 @@ int32 GetMem(int32 addr);
 int32 PutMem(int32 addr, int32 data);
 
 int16 reason;
+unsigned short old_crc;
+unsigned char crc_data;
 
 /* CPU data structures
    cpu_unit     CPU unit descriptor
@@ -410,6 +412,39 @@ DEVICE cpu_dev = {
     &cpu_ex, &cpu_dep, &cpu_reset, &cpu_boot,
     NULL, NULL
 };
+
+
+// SDLC 
+unsigned short calculateSDLCCrcChar (unsigned short crc, unsigned char data_p) {
+  unsigned char i;
+  unsigned int data;
+  for (i=0, data=(unsigned int)0xff & data_p;
+       i < 8; 
+       i++, data >>= 1)
+    {
+      if ((crc & 0x0001) ^ (data & 0x0001))
+	crc = (crc >> 1) ^ 0x8408;
+      else  crc >>= 1;
+    }
+  return crc;
+}
+
+
+//BSC
+
+unsigned short calculateBSCCrcChar (unsigned short crc, unsigned char data_p) {
+  unsigned char i;
+  unsigned int data;
+  for (i=0, data=(unsigned int)0xff & data_p;
+       i < 8; 
+       i++, data >>= 1)
+    {
+      if ((crc & 0x0001) ^ (data & 0x0001))
+	crc = (crc >> 1) ^ 0xa001;
+      else  crc >>= 1;
+    }
+  return crc;
+}
 
 //********************************************************
 // Instruction simulator
@@ -1441,6 +1476,7 @@ while (reason == 0) {                          /* Loop until halted */
          w_byte = GetMem(addr) << 8;
          addr++;
          w_byte = w_byte | GetMem(addr);
+	 old_crc = w_byte;
          GR[Rfld][Grp] = w_byte;               /* X-byte = 0 */
          if (Rfld == 0) break;                 /* New IAR ! */
 
@@ -1976,9 +2012,11 @@ while (reason == 0) {                          /* Loop until halted */
             if (CL_C[3] == ON) Eregs_Inp[0x79] |= 0x0200;  // L5 C & Z flags
             if (CL_Z[3] == ON) Eregs_Inp[0x79] |= 0x0100;
 
-            Eregs_Inp[0x7B] = 0x0000;    // Good BSC CRC.
-            Eregs_Inp[0x7C] = 0xF0B8;    // Good SDLC CRC.
-
+  //Eregs_Inp[0x7B] = 0x0000;    // Good BSC CRC.
+  //Eregs_Inp[0x7C] = 0xF0B8;    // Good SDLC CRC
+            Eregs_Inp[0x7B] = calculateBSCCrcChar(old_crc, crc_data);
+	    Eregs_Inp[0x7C] = calculateSDLCCrcChar(old_crc, crc_data);
+	    
             Eregs_Inp[0x7E] = 0x0000;    // Reset all bits in reg 0x7E
             if (adr_ex_chk)  Eregs_Inp[0x7E]  |= 0x0040;   // Address exception check
             if (IO_L5_chk)   Eregs_Inp[0x7E]  |= 0x0020;   // I/O instr in L5
@@ -2009,6 +2047,9 @@ while (reason == 0) {                          /* Loop until halted */
             IO_L5_chk = ON;            // I/O instr in L5
             break;
          }
+	 if ((lvl == 1) || (lvl == 2) || (lvl == 3) || (lvl == 4)) {
+	   crc_data = 0xff & GR[Rfld][Grp];  // store crc data on all OUT with level =1,2,3,4
+	 }
          if (Efld < 0x20) {            // Output to GR's ?
             if (Rfld == 0) break;      // Only regen of regs parity
             GR[Efld & 0x007][Efld >> 3] = GR[Rfld][Grp];

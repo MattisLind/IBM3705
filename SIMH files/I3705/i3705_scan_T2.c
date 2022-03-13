@@ -136,7 +136,7 @@ int8 icw_pdf_reg = EMPTY;              /* Status ICW PDF reg: ncp FILLED pdf for
                                        /*                     ncp EMPTY pdf during Rx */
 int8 Rsp_buf     = EMPTY;              /* Status PIU response buf (FILLED/EMPTY) */
 int  Plen;                             /* Length of PIU response */
-int8 Eflg_rvcd;                        /* Eflag received */
+int8 Eflg_rvcd = ON;                        /* Eflag received */
 
 /* ICW Local Store Registers */
 int  abar;
@@ -160,7 +160,7 @@ extern pthread_mutex_t r77_lock;       /* I/O reg x'77' lock */
 int openSerial () {
   int ret;
   int fd;
-  const char * devStr = "/dev/ttyUSB0";
+  const char * devStr = "/dev/ttyACM0";
   struct termios options;
   unsigned char ch;
   /* open the port */
@@ -292,13 +292,35 @@ void *CS2_thread(void *arg) {
                if (icw_lne_stat[t] == TX)      // Line is silent. Wait for NCP action.
                   break;
 	       ret = read (fd, &ch, 1);
+	       //fprintf(stderr, "Read ret=%d ch=%02X\r\n");
                // Line state is receiving, wait for BFlag...
                if (ret == 1) {                 // we got a character? That is the start of the frame.
-                  icw_scf[t]  |= 0x04;         // Set flag detected. (NO Serv bit)
+		 fprintf(stderr, "Read %02X\r\n",ch);
+		  if (ch == 0xff) {
+		    fprintf (stderr, "Got escape while waiting for leading frame marker.\r\n");
+		    escape = 1;
+		    break;
+		  }
+		  if (escape) {
+		    if (ch == 0xef) { // End of frame marker
+		      ch = 0x7e;
+		      Eflg_rvcd = ON;
+		      fprintf (stderr, "Got End Flag - while waiting for leading frame marker\r\n");
+		      break;
+		    }
+		    escape = 0;		    
+		  }
+		  if (Eflg_rvcd == ON) {
+		    fprintf(stderr, "Eflg_rvcd = ON processing a start of next frame.\r\n");
+		    Eflg_rvcd = OFF;
+	      
+		  icw_scf[t]  |= 0x04;         // Set flag detected. (NO Serv bit)
+		  icw_pdf[t] = 0x7E;
 		  icw_scf[t]  &= 0xBF;         // turn off service flag
                   icw_lcd[t]   = 0x9;          // LCD = 9 (SDLC 8-bit)
                   icw_pcf_new  = 0x6;          // Goto PCF = 6...
                   CS2_req_L2_int = ON;         // ...and issue a L2 int
+		  }
                }
                break;
 
@@ -323,10 +345,12 @@ void *CS2_thread(void *arg) {
                   break;                              // Loop till inactive...
 
                if (icw_pdf_reg == EMPTY) {   // NCP has read pdf ?
-                  //   else Eflg_rvcd = OFF;   // No Eflag
+                  Eflg_rvcd = OFF;   // No Eflag
 		  ret = read (fd, &ch, 1);
 		  if (ret == 0) break;
+		  fprintf(stderr, "Read ch=%02X\r\n",ch);
 		  if (ch == 0xff) {
+		    fprintf (stderr, "Got escape\r\n");
 		    escape = 1;
 		    break;
 		  }
@@ -334,6 +358,7 @@ void *CS2_thread(void *arg) {
 		    if (ch == 0xef) { // End of frame marker
 		      ch = 0x7e;
 		      Eflg_rvcd = ON;
+		      fprintf (stderr, "Got End Flag\r\n");
 		    }
 		    escape = 0;		    
 		  }
@@ -343,11 +368,13 @@ void *CS2_thread(void *arg) {
                      fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
                   }
                   if (Eflg_rvcd == ON) {     // EFlag received ?
+		    fprintf(stderr, "End flag processing\r\n");
                      icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
                      icw_scf[t] |= 0x44;     // Set char serv and flag det bit
                      icw_pcf_new = 0x6;      // Go back to PCF = 6...
                      CS2_req_L2_int = ON;    // Issue a L2 interrupt
                   } else {
+		    fprintf(stderr, "Normal processing\r\n");
                      icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
 		     fprintf(stderr, "\n<<< CS2[%1X]: Rx Char interrupt = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);     
                      icw_scf[t] |= 0x40;     // Set norm char serv flag
@@ -381,12 +408,14 @@ void *CS2_thread(void *arg) {
 		  if (icw_scf[t]&0x01) {   // send flag byte
 		    if (start_of_frame==1) {
 		      start_of_frame=0;
-		      break;
+		      fprintf (stderr, "Start of frame!\r\n");
 		    } else {
 		      start_of_frame=1;
 		      write(fd, end_frame, 2);
+		      fprintf(stderr, "End of frame! Send 0xff 0xef. \r\n");
 		    }
 		  } else {
+		    fprintf (stderr, "Wrote byte=%02X \r\n", icw_pdf[t]);
 		    write(fd, &icw_pdf[t], 1);
 		  }
                   // Next byte please...
