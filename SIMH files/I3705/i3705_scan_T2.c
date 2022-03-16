@@ -172,26 +172,22 @@ int openSerial () {
     perror("Error:");
   }
   fprintf(stderr, "fcntl ret=%d",ret);
-
-
-
-/* get the current options */
-  ret = tcgetattr(fd, &options);
-  fprintf(stderr, "tcgetattr ret=%d",ret);
-  
-  options.c_cflag &= ~CSIZE;
-  options.c_cflag &= ~CSTOPB;
-  options.c_cflag &= ~PARENB;
-  options.c_cflag &= ~PARODD;
-  //options.c_cflag |= config;
-  
-  cfsetispeed(&options, B2400);
-  cfsetospeed(&options, B2400);
   
   /* set raw input, 1 second timeout */
-  options.c_cflag     |= (CLOCAL | CREAD);
-  options.c_lflag     &= ~(ICANON | ECHO | ECHOE | ISIG);
-  options.c_oflag     &= ~OPOST;
+  
+  
+  options.c_iflag     = 0;
+  options.c_oflag     = 0; 
+  options.c_cflag     = 0;
+  options.c_lflag     = 0;
+
+  cfsetispeed(&options, B19200);
+  cfsetospeed(&options, B19200);
+
+  options.c_cflag  |=  (CS8 | CLOCAL | CREAD);
+
+  for (int i=0; i<NCCS; i++) options.c_cc[i]  = 0;
+
   options.c_cc[VMIN]  = 0;
   options.c_cc[VTIME] = 1;
   
