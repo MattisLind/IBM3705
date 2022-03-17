@@ -222,6 +222,7 @@ int32 PC;                                               /* Program Counter */
 int32 LAR;                                              /* Lagging Address Register */
 int32 saved_PC;                                         /* Previous (saved) PC */
 int32 debug_reg = 0x40;                                 /* Bit flags for debug/trace */
+// int32 debug_reg = 0x56;                                 /* Bit flags for debug/trace */
 int32 debug_flag = OFF;                                 /* 1 when trace.log open */
 FILE  *trace;
 int   tbar;                                             /* ICW table pointer */

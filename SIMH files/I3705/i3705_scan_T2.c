@@ -117,6 +117,7 @@
 #include <termios.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/time.h>
 #include <assert.h>
 
 #define MAX_TBAR   3                   // ICW table size (4 line sets)
@@ -156,6 +157,32 @@ int8 CS2_req_L2_int = OFF;
 
 pthread_mutex_t icw_lock;              /* ICW lock (0 - 45)  */
 extern pthread_mutex_t r77_lock;       /* I/O reg x'77' lock */
+
+unsigned char pcap_buf[1024];
+int pcap_ptr = 0;
+FILE * pcap_file;
+
+typedef unsigned int guint32;
+typedef unsigned short guint16; 
+typedef int gint32;
+
+typedef struct pcap_hdr_s {
+  guint32 magic_number;   /* magic number */
+  guint16 version_major;  /* major version number */
+  guint16 version_minor;  /* minor version number */
+  gint32  thiszone;       /* GMT to local correction */
+  guint32 sigfigs;        /* accuracy of timestamps */
+  guint32 snaplen;        /* max length of captured packets, in octets */
+  guint32 network;        /* data link type */
+} pcap_hdr_t;
+
+typedef struct pcaprec_hdr_s {
+  guint32 ts_sec;         /* timestamp seconds */
+  guint32 ts_usec;        /* timestamp microseconds */
+  guint32 incl_len;       /* number of octets of packet saved in file */
+  guint32 orig_len;       /* actual length of packet */
+} pcaprec_hdr_t;
+
 
 int openSerial () {
   int ret;
@@ -212,8 +239,25 @@ void *CS2_thread(void *arg) {
    register char *s;
    int start_of_frame = 1;
    char end_frame[2] = {0xff,0xef};
+   pcap_hdr_t pcap;
+   pcaprec_hdr_t pcap_rec;
+   struct timeval tv;
    // open serial port 
    fd = openSerial();
+   pcap_file = fopen ("i3705-sdlc.pcap", "w");
+   if (pcap_file == NULL) {
+     fprintf(stderr, "Failed to open pcap - file.\r\n");
+   }
+   pcap.magic_number = 0xa1b2c3d4;   /* magic number */
+   pcap.version_major = 2;  /* major version number */
+   pcap.version_minor = 4;  /* minor version number */
+   pcap.thiszone = 0;       /* GMT to local correction */
+   pcap.sigfigs = 0;        /* accuracy of timestamps */
+   pcap.snaplen = 2048;        /* max length of captured packets, in octets */
+   pcap.network = 268;        /* data link type */
+
+   fwrite (&pcap, sizeof pcap, 1, pcap_file);
+   fflush(pcap_file);
    fprintf(stderr, "\nCS2: thread %ld started succesfully...\n",syscall(SYS_gettid));
    int ch, ret;
    while(1) {
@@ -275,7 +319,7 @@ void *CS2_thread(void *arg) {
 
             case 0x4:                  // Mon 7E flag - block DSR error
             case 0x5:                  // Mon 7E flag - allow DSR error
-               icw_scf[t] &= 0xFB;     // Reset 7E detected flag
+	      icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40) {  // Trace PCF state ?
                      fprintf(stderr, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
@@ -287,6 +331,8 @@ void *CS2_thread(void *arg) {
                   break;
                if (icw_lne_stat[t] == TX)      // Line is silent. Wait for NCP action.
                   break;
+	       //	       if (Eflg_rvcd == ON) {
+	       //readmore:		 
 	       ret = read (fd, &ch, 1);
 	       //fprintf(stderr, "Read ret=%d ch=%02X\r\n");
                // Line state is receiving, wait for BFlag...
@@ -301,11 +347,13 @@ void *CS2_thread(void *arg) {
 		    if (ch == 0xef) { // End of frame marker
 		      ch = 0x7e;
 		      Eflg_rvcd = ON;
+		      pcap_ptr=0;
 		      fprintf (stderr, "Got End Flag - while waiting for leading frame marker\r\n");
 		      break;
 		    }
 		    escape = 0;		    
 		  }
+		  //if (ch != 0xC1) goto readmore;
 		  if (Eflg_rvcd == ON) {
 		    fprintf(stderr, "Eflg_rvcd = ON processing a start of next frame.\r\n");
 		    Eflg_rvcd = OFF;
@@ -317,13 +365,14 @@ void *CS2_thread(void *arg) {
                   icw_pcf_new  = 0x6;          // Goto PCF = 6...
                   CS2_req_L2_int = ON;         // ...and issue a L2 int
 		  }
-               }
+               } //}
                break;
 
             case 0x6:                  // Receive info-inhibit data interrupt
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;                              // Loop till inactive...
 	       icw_pdf[t] = ch;
+	       pcap_buf[pcap_ptr++] = ch;
                if (debug_reg & 0x40) { // Trace PCF state ?
                   fprintf(stderr, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
                   fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
@@ -359,23 +408,34 @@ void *CS2_thread(void *arg) {
 		    escape = 0;		    
 		  }
                   icw_pdf[t] = ch; // Get received byte
+		  pcap_buf[pcap_ptr++] = ch;
                   if (debug_reg & 0x40) {    // Trace PCF state ?
                      fprintf(stderr, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
                      fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
                   }
                   if (Eflg_rvcd == ON) {     // EFlag received ?
 		    fprintf(stderr, "End flag processing\r\n");
-                     icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
-                     icw_scf[t] |= 0x44;     // Set char serv and flag det bit
-                     icw_pcf_new = 0x6;      // Go back to PCF = 6...
-                     CS2_req_L2_int = ON;    // Issue a L2 interrupt
+                    icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
+                    icw_scf[t] |= 0x44;     // Set char serv and flag det bit
+                    icw_pcf_new = 0x6;      // Go back to PCF = 6...
+                    CS2_req_L2_int = ON;    // Issue a L2 interrupt
+	     // write pcap_buf to file
+		    gettimeofday(&tv,NULL);
+		    pcap_rec.ts_sec = tv.tv_sec;
+		    pcap_rec.ts_usec = tv.tv_usec;
+		    pcap_rec.incl_len = (pcap_ptr-3)>0?pcap_ptr-3:0;
+		    pcap_rec.orig_len = (pcap_ptr-3)>0?pcap_ptr-3:0;
+		    fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+		    fwrite (pcap_buf, (pcap_ptr-3)>0?pcap_ptr-3:0, 1, pcap_file);
+		    fflush(pcap_file);
+		    pcap_ptr = 0;
                   } else {
 		    fprintf(stderr, "Normal processing\r\n");
-                     icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
-		     fprintf(stderr, "\n<<< CS2[%1X]: Rx Char interrupt = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);     
-                     icw_scf[t] |= 0x40;     // Set norm char serv flag
-                     icw_pcf_new = 0x7;      // Stay in PCF = 7...
-                     CS2_req_L2_int = ON;    // Issue a L2 interrupt
+                    icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
+		    fprintf(stderr, "\n<<< CS2[%1X]: Rx Char interrupt = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);     
+                    icw_scf[t] |= 0x40;     // Set norm char serv flag
+                    icw_pcf_new = 0x7;      // Stay in PCF = 7...
+                    CS2_req_L2_int = ON;    // Issue a L2 interrupt
                   }
                }
                break;
@@ -404,14 +464,25 @@ void *CS2_thread(void *arg) {
 		  if (icw_scf[t]&0x01) {   // send flag byte
 		    if (start_of_frame==1) {
 		      start_of_frame=0;
+		      pcap_ptr = 0;
 		      fprintf (stderr, "Start of frame!\r\n");
 		    } else {
 		      start_of_frame=1;
 		      write(fd, end_frame, 2);
 		      fprintf(stderr, "End of frame! Send 0xff 0xef. \r\n");
+		      gettimeofday(&tv,NULL);
+		      pcap_rec.ts_sec = tv.tv_sec;
+		      pcap_rec.ts_usec = tv.tv_usec;
+		      pcap_rec.incl_len = (pcap_ptr-2)>0?pcap_ptr-2:0;
+		      pcap_rec.orig_len = (pcap_ptr-2)>0?pcap_ptr-2:0;
+		      fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+		      fwrite (pcap_buf, (pcap_ptr-2)>0?pcap_ptr-2:0, 1, pcap_file);
+		      fflush(pcap_file);
+		      pcap_ptr = 0;
 		    }
 		  } else {
 		    fprintf (stderr, "Wrote byte=%02X \r\n", icw_pdf[t]);
+		    pcap_buf[pcap_ptr++] = icw_pdf[t];
 		    write(fd, &icw_pdf[t], 1);
 		  }
                   // Next byte please...
