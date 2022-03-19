@@ -115,6 +115,10 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <termios.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <assert.h>
 
 #define MAX_TBAR   3                   // ICW table size (4 line sets)
 
@@ -153,6 +157,51 @@ int8 CS2_req_L2_int = OFF;
 uint8_t BLU_buf[65536];                   /* DLC header + TH + RH + RU + DLC trailer */
 pthread_mutex_t icw_lock;              /* ICW lock (0 - 45)  */
 extern pthread_mutex_t r77_lock;       /* I/O reg x'77' lock */
+
+int openSerial () {
+  int ret;
+  int fd;
+  const char * devStr = "/dev/ttyACM0";
+  struct termios options;
+  unsigned char ch;
+  /* open the port */
+  fprintf(stderr, "devStr=%s\n", devStr);
+  fd = open(devStr, O_RDWR | O_NOCTTY | O_NDELAY);
+  fprintf(stderr, "open fd=%d", fd);
+  ret = fcntl(fd, F_SETFL, 0);
+  if (ret == -1) {
+    perror("Error:");
+  }
+  fprintf(stderr, "fcntl ret=%d",ret);
+
+
+
+/* get the current options */
+  ret = tcgetattr(fd, &options);
+  fprintf(stderr, "tcgetattr ret=%d",ret);
+  options.c_iflag     = 0;
+  options.c_oflag     = 0; 
+  options.c_cflag     = 0;
+  options.c_lflag     = 0;
+
+  cfsetispeed(&options, B19200);
+  cfsetospeed(&options, B19200);
+
+  options.c_cflag  |=  (CS8 | CLOCAL | CREAD);
+
+  for (int i=0; i<NCCS; i++) options.c_cc[i]  = 0;
+
+  options.c_cc[VMIN]  = 0;
+  options.c_cc[VTIME] = 1;
+
+  /* set the options */
+  ret=tcsetattr(fd, TCSANOW, &options);
+  sleep(2); //required to make flush work, for some reason
+  tcflush(fd,TCIOFLUSH);
+  fprintf(stderr, "tcsetattr ret=%d\n", ret);
+  return fd;
+}
+
 
 void proc_BLU(char *BLU_buf, int j);
 void Put_ICW(int i);
