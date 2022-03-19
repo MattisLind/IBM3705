@@ -221,7 +221,7 @@ int32 Grp;                                              /* Active Register Group
 int32 PC;                                               /* Program Counter */
 int32 LAR;                                              /* Lagging Address Register */
 int32 saved_PC;                                         /* Previous (saved) PC */
-int32 debug_reg = 0x00;                                 /* Bit flags for debug/trace */
+int32 debug_reg = 0x40;                                 /* Bit flags for debug/trace */
 int32 debug_flag = OFF;                                 /* 1 when trace.log open */
 FILE  *trace;
 int   tbar;                                             /* ICW table pointer */
@@ -2079,7 +2079,7 @@ while (reason == 0) {                          /* Loop until halted */
                   //debug_reg = 0x63;                 // Very very very temp HJS
                }
                if (Efld == 0x44) {             // ICW SCF & PDF
-                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4E;   // Only Serv Req, DCD & Pgm Flag
+                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4e;   // Only Serv Req, DCD & Pgm Flag
                   icw_pdf[tbar] =  Eregs_Out[0x44] & 0x00FF;
                   if (icw_pcf[0] != 0x07)               // TEMP
                      icw_pdf_reg = FILLED;     // PDF is filled for tx
