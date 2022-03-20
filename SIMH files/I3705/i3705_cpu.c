@@ -2079,7 +2079,7 @@ while (reason == 0) {                          /* Loop until halted */
                   //debug_reg = 0x63;                 // Very very very temp HJS
                }
                if (Efld == 0x44) {             // ICW SCF & PDF
-                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4e;   // Only Serv Req, DCD & Pgm Flag
+                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4f;   // Only Serv Req, DCD & Pgm Flag
                   icw_pdf[tbar] =  Eregs_Out[0x44] & 0x00FF;
                   if (icw_pcf[0] != 0x07)               // TEMP
                      icw_pdf_reg = FILLED;     // PDF is filled for tx

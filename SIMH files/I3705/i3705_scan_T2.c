@@ -204,18 +204,22 @@ int openSerial () {
 
 int readSDLC(int fd, unsigned char * buf, int * sum) {
   int ret=0;
-  *sum=0;
+  (*sum)=0;
   int end_of_frame = 0;
   do {
-    ret = read (fd, buf+*sum, 1);
-    *sum += ret;
-    //printFrame("Receive", buf, sum);
-    //    fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[sum-1], 0xff&buf[sum-2], ret);
-    //fprintf (stderr, "%d %d\n", ((0xff & buf[sum-1]) == 0xef), ((0xff & buf[sum-2]) == 0xff));
-    end_of_frame = ((((0xff & buf[*sum-1]) == 0xef) || ((0xff & buf[*sum-1]) == 0xfe)) && ((0xff & buf[*sum-2]) == 0xff)); 
-} while (! end_of_frame);
+    ret = read (fd, buf+(*sum), 1);
+    (*sum) += ret;
+    printFrame("Receive", buf, (*sum));
+    if ((*sum) >1) {
+      fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[(*sum)-1], 0xff&buf[(*sum)-2], ret);
+      fprintf (stderr, "%d %d\n", ((0xff & buf[(*sum)-1]) == 0xef), ((0xff & buf[(*sum)-2]) == 0xff));
+      end_of_frame = ((((0xff & buf[*(sum)-1]) == 0xef) || ((0xff & buf[*(sum)-1]) == 0xfe)) && ((0xff & buf[*(sum)-2]) == 0xff));
+    } else {
+      end_of_frame = 0;
+    }
+  } while (!end_of_frame && ((*sum) > 0));
   printFrame("Receive", buf, *sum);
-  return  ((0xff & buf[*sum-1]) == 0xef);
+  return  ((0xff & buf[*(sum)-1]) == 0xef);
 }
 
 
@@ -245,6 +249,8 @@ void *CS2_thread(void *arg) {
    int write_buffer_index = 0;
    unsigned char * write_buffer_ptr [8];
    int write_buffer_size [8];
+   int end_flag = 0;
+   int lastj = 0;
    fprintf(stderr, "\nCS2: thread %ld started succesfully...\n",syscall(SYS_gettid));
    fd = openSerial();
    while(1) {
@@ -315,10 +321,10 @@ void *CS2_thread(void *arg) {
                   }
                }
                j = 0;                          // Reset buffer pointer
-               if (icw_lne_stat[t] == RESET)   // Line is silent. Wait for NCP time out.
+	       /*               if (icw_lne_stat[t] == RESET)   // Line is silent. Wait for NCP time out.
                   break;
                if (icw_lne_stat[t] == TX)      // Line is silent. Wait for NCP action.
-                  break;
+	       break;*/
 	       do {
 		 normal_frame = readSDLC(fd, BLU_buf, &size);
 	       } while (size>0 && !normal_frame);
@@ -389,6 +395,7 @@ void *CS2_thread(void *arg) {
                // CTS is now on.
                icw_pcf_new = 0x9;      // Goto PCF = 9
                j = 0;                  // Reset Tx buffer pointer.
+	       lastj = 0;
 	       write_buffer_ptr[0] = BLU_buf;
                // NO CS2_req_L2_int !
                break;
@@ -403,11 +410,18 @@ void *CS2_thread(void *arg) {
                   }
 
 		  if (icw_scf[t]&0x01) {   // send flag byte
-		    BLU_buf[j++] = 0xff;		    
-		    BLU_buf[j++] = 0xef;
-		    
-		    write_buffer_size[write_buffer_index++] = j;
-		    write_buffer_ptr[write_buffer_index] = BLU_buf + j;
+		    if (end_flag) {
+		      end_flag = 0;
+		      fprintf (stderr, "Send a flag byte. write_buffer_index=%d\n", write_buffer_index);
+		      BLU_buf[j++] = 0xff;		    
+		      BLU_buf[j++] = 0xef;
+		      write_buffer_size[write_buffer_index++] = j-lastj;
+		      lastj = j;
+		      write_buffer_ptr[write_buffer_index] = BLU_buf + j;
+		    } else {
+		      // start of frame
+		      end_flag = 1;
+		    }
 		  } else {
 		    BLU_buf[j++] = icw_pdf[t];
 		    if (icw_pdf[t] == 0xff) BLU_buf[j++] = icw_pdf[t];
@@ -429,7 +443,12 @@ void *CS2_thread(void *arg) {
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Stderr PCF state ?
                      fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
-		  for (int i=0; i<=write_buffer_index; i++) {
+		  fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
+		  fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
+		  
+		  for (int i=0; i<write_buffer_index; i++) {
+		    fprintf (stderr, "i=%d\n", i);
+		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
 		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		    write (fd, write_buffer_ptr[i], write_buffer_size[i]);
 		  }
@@ -489,7 +508,7 @@ void *CS2_thread(void *arg) {
          if (icw_pcf[t] != icw_pcf_new) {   // pcf state changed ?
             icw_pcf[t] = icw_pcf_new;       // set new current pcf
          }
-         if (debug_reg & 0x40)         // Trace Prev / Curr PCF state ?
+         if (debug_reg & 0x40 & (icw_pcf[t] != 0))         // Trace Prev / Curr PCF state ?
             fprintf(stderr, "\n>>> CS2[%1X]: Next PCF = %1X \n\r",
                     icw_pcf_prev[t], icw_pcf[t]);
          // Release the ICW lock
