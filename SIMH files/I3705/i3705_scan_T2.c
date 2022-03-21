@@ -109,6 +109,7 @@
 #include <signal.h>
 #include <ctype.h>
 #include <time.h>
+#include <sys/time.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -157,6 +158,33 @@ int8 CS2_req_L2_int = OFF;
 uint8_t BLU_buf[65536];                   /* DLC header + TH + RH + RU + DLC trailer */
 pthread_mutex_t icw_lock;              /* ICW lock (0 - 45)  */
 extern pthread_mutex_t r77_lock;       /* I/O reg x'77' lock */
+
+unsigned char pcap_buf[1024];
+int pcap_ptr = 0;
+FILE * pcap_file;
+
+typedef unsigned int guint32;
+typedef unsigned short guint16; 
+typedef int gint32;
+
+typedef struct pcap_hdr_s {
+  guint32 magic_number;   /* magic number */
+  guint16 version_major;  /* major version number */
+  guint16 version_minor;  /* minor version number */
+  gint32  thiszone;       /* GMT to local correction */
+  guint32 sigfigs;        /* accuracy of timestamps */
+  guint32 snaplen;        /* max length of captured packets, in octets */
+  guint32 network;        /* data link type */
+} pcap_hdr_t;
+
+typedef struct pcaprec_hdr_s {
+  guint32 ts_sec;         /* timestamp seconds */
+  guint32 ts_usec;        /* timestamp microseconds */
+  guint32 incl_len;       /* number of octets of packet saved in file */
+  guint32 orig_len;       /* actual length of packet */
+} pcaprec_hdr_t;
+
+
 
 int openSerial () {
   int ret;
@@ -251,8 +279,27 @@ void *CS2_thread(void *arg) {
    int write_buffer_size [8];
    int end_flag = 0;
    int lastj = 0;
+   
+   pcap_hdr_t pcap;
+   pcaprec_hdr_t pcap_rec;
+   struct timeval tv;
+   
    fprintf(stderr, "\nCS2: thread %ld started succesfully...\n",syscall(SYS_gettid));
    fd = openSerial();
+   pcap_file = fopen ("i3705-sdlc.pcap", "w");
+   if (pcap_file == NULL) {
+     fprintf(stderr, "Failed to open pcap - file.\r\n");
+   }
+   pcap.magic_number = 0xa1b2c3d4;   /* magic number */
+   pcap.version_major = 2;  /* major version number */
+   pcap.version_minor = 4;  /* minor version number */
+   pcap.thiszone = 0;       /* GMT to local correction */
+   pcap.sigfigs = 0;        /* accuracy of timestamps */
+   pcap.snaplen = 2048;        /* max length of captured packets, in octets */
+   pcap.network = 268;        /* data link type */
+
+   fwrite (&pcap, sizeof pcap, 1, pcap_file);
+   fflush(pcap_file);
    while(1) {
 //    for (i = 0; i < MAX_TBAR; i++) {     // Pending multiple line support !!!
          t = 0;                            // Temp for ONE line set.
@@ -329,6 +376,17 @@ void *CS2_thread(void *arg) {
 		 normal_frame = readSDLC(fd, BLU_buf, &size);
 	       } while (size>0 && !normal_frame);
 	       printFrame("Receive : ", BLU_buf, size);
+	     // write pcap_buf to file
+	       if (size>=8) {
+	         gettimeofday(&tv,NULL);
+	         pcap_rec.ts_sec = tv.tv_sec;
+	         pcap_rec.ts_usec = tv.tv_usec;
+	         pcap_rec.incl_len = size - 6;
+	         pcap_rec.orig_len = size -6;
+	         fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+	         fwrite (BLU_buf, size -6, 1, pcap_file);
+	         fflush(pcap_file);
+	       }
 	       size -=4; // skip the CRC calc and EOR
                // Line state is receiving, wait for BFlag...
                if (size  > 0) {       // we got a normal frame (not abort) ?
@@ -450,6 +508,14 @@ void *CS2_thread(void *arg) {
 		    fprintf (stderr, "i=%d\n", i);
 		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
 		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		    gettimeofday(&tv,NULL);
+		    pcap_rec.ts_sec = tv.tv_sec;
+		    pcap_rec.ts_usec = tv.tv_usec;
+		    pcap_rec.incl_len = write_buffer_size[i]-4;
+		    pcap_rec.orig_len = write_buffer_size[i]-4;
+		    fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+		    fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
+		    fflush(pcap_file);		    
 		    write (fd, write_buffer_ptr[i], write_buffer_size[i]);
 		  }
 		  
