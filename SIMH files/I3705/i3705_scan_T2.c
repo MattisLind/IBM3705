@@ -360,7 +360,18 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
   }
   fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
   buffer[adjustedSize] =(~crc) & 0xff;
-  buffer[adjustedSize+1] = ((~crc) >> 8) & 0xff;
+  if (buffer[adjustedSize] == 0xff) {
+    adjustedSize++;
+    buffer[adjustedSize] = 0xff;
+    (*size)++;
+  }
+  adjustedSize++;
+  buffer[adjustedSize] = ((~crc) >> 8) & 0xff;
+  if (buffer[adjustedSize] == 0xff) {
+    adjustedSize ++;
+    buffer[adjustedSize] = 0xff;
+    (*size)++;
+  }
 }
 
 
