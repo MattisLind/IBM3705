@@ -250,9 +250,121 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
   return  ((0xff & buf[*(sum)-1]) == 0xef);
 }
 
+int IBM3705_Sender_diff = 0; 
+int Terminal_Sender_diff = 0;
+
+static unsigned short calculateSDLCCrcChar (unsigned short crc, unsigned char data_p) {
+  unsigned char i;
+  unsigned int data;
+  for (i=0, data=(unsigned int)0xff & data_p;
+       i < 8; 
+       i++, data >>= 1)
+    {
+      if ((crc & 0x0001) ^ (data & 0x0001))
+	crc = (crc >> 1) ^ 0x8408;
+      else  crc >>= 1;
+    }
+  return crc;
+}
 
 
-void proc_BLU(char *BLU_buf, int j);
+// direction: 0 = coming from IBM3705. 1 = coming from Terminal
+
+void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
+  unsigned short crc = 0xffff;
+  int adjustedSize;
+  int ns, nr;
+  fprintf (stderr, "buffer[11]=%02X buffer[12]=%02X buffer[13]=%02X direction=%d\n", 0xff& buffer[11], 0xff&buffer[12], 0xff&buffer[13]&0xff, direction);
+  // Match the incoming message and see if it is going to be dropped.
+  if (buffer[11] == 0x81 && buffer[12] == 0x06 && buffer[13] == 0x20 && direction == 1 && *size > 13) {
+    fprintf (stderr, "Detected a packet that is going to be dropped.\n");
+    if (buffer[1] & 0x10) {
+      fprintf(stderr, "Final bit set - replace with a new RR packet.\n");
+      buffer[1] = (buffer[1] & 0xE0) | 0x11;  // RR
+      *size = 4; // including the CRC					       
+    } else {
+      fprintf(stderr, "Final bit not set - drop packet.\n");
+      *size = 0;
+    }
+    // act as if the sender actually sent the I frame.
+    Terminal_Sender_diff++;
+    if (Terminal_Sender_diff==8) Terminal_Sender_diff=0;
+    fprintf(stderr, "Terminal_sender_diff is now %d\n", Terminal_Sender_diff);
+  }
+  // Now we need to handle the diffs and recalculate N(S) and N(R)
+  if (direction) {
+
+    if ((buffer[1] & 0x1) == 0) {
+      // info
+      ns = (buffer[1]>>1) & 0x7;
+      nr = (buffer[1]>>5) & 0x7;
+      fprintf(stderr, "Got an info frame from the terminal with N(S)=%d and N(R)=%d\n", ns, nr);
+      nr += IBM3705_Sender_diff;
+      nr = nr & 0x7;
+      ns -= Terminal_Sender_diff;
+      ns = ns & 0x7;
+      buffer[1] &= 0x11;
+      buffer[1] |= (ns << 1);
+      buffer[1] |= (nr << 5);
+      fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
+    } else if ((buffer[1] & 0x3) == 0x1) {
+      // Supervisory frames like RR
+      nr = (buffer[1]>>5) & 0x7;
+      fprintf(stderr, "Got an supervisory frame from the terminal with N(R)=%d\n", nr);
+      nr += IBM3705_Sender_diff;
+      nr = nr & 0x7;
+      buffer[1] &= 0x1F;
+      buffer[1] |= (nr << 5);      
+      fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
+    } else if (buffer[1] == 0x93) {
+      IBM3705_Sender_diff = 0; 
+      Terminal_Sender_diff = 0;
+      fprintf(stderr, "Got a SNRM - resetting diff counts\n");      
+    }
+  } else {
+    if ((buffer[1] & 0x1) == 0) {
+      // info
+      ns = (buffer[1]>>1) & 0x7;
+      nr = (buffer[1]>>5) & 0x7;
+      fprintf(stderr, "Got an info frame from the IBM3705 with N(S)=%d and N(R)=%d\n", ns, nr);
+      nr += Terminal_Sender_diff;
+      nr = nr & 0x7;
+      ns -= IBM3705_Sender_diff;
+      ns = ns & 0x7;
+      buffer[1] &= 0x11;
+      buffer[1] |= (ns << 1);
+      buffer[1] |= (nr << 5);
+      fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
+    } else if ((buffer[1] & 0x3) == 0x1) {
+      // Supervisory frames like RR
+      nr = (buffer[1]>>5) & 0x7;
+      fprintf(stderr, "Got an supervisory frame from the IBM3705 with N(R)=%d\n", nr);
+      nr += Terminal_Sender_diff;
+      nr = nr & 0x7;
+      buffer[1] &= 0x1F;
+      buffer[1] |= (nr << 5);      
+      fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
+    } else if (buffer[1] == 0x93) {
+      IBM3705_Sender_diff = 0; 
+      Terminal_Sender_diff = 0;
+      fprintf(stderr, "Got a SNRM - resetting diff counts\n");
+    }
+  }
+  if (direction) { // from terminal
+    adjustedSize = (*size) - 6;
+  } else {
+    adjustedSize = (*size) - 4;
+  }
+  for (int i; i < adjustedSize; i++) { // skip the CRC bytes of course.
+    crc = calculateSDLCCrcChar(crc,buffer[i]);
+  }
+  fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
+  buffer[adjustedSize] =(~crc) & 0xff;
+  buffer[adjustedSize+1] = ((~crc) >> 8) & 0xff;
+}
+
+
+void proc_BLU(unsigned char *BLU_buf, int j);
 void Put_ICW(int i);
 void Get_ICW(int i);
 
@@ -374,6 +486,11 @@ void *CS2_thread(void *arg) {
 	       break;*/
 	       do {
 		 normal_frame = readSDLC(fd, BLU_buf, &size);
+		 if (normal_frame && size > 0) {
+		   printFrame("Before rewriteSDLC : ", BLU_buf, size);
+		   rewriteSDLC (1, BLU_buf, &size);
+		   printFrame("After rewriteSDLC : ", BLU_buf, size);
+		 }
 	       } while (size>0 && !normal_frame);
 	       printFrame("Receive : ", BLU_buf, size);
 	     // write pcap_buf to file
@@ -508,15 +625,21 @@ void *CS2_thread(void *arg) {
 		    fprintf (stderr, "i=%d\n", i);
 		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
 		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
-		    gettimeofday(&tv,NULL);
-		    pcap_rec.ts_sec = tv.tv_sec;
-		    pcap_rec.ts_usec = tv.tv_usec;
-		    pcap_rec.incl_len = write_buffer_size[i]-4;
-		    pcap_rec.orig_len = write_buffer_size[i]-4;
-		    fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
-		    fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
-		    fflush(pcap_file);		    
-		    write (fd, write_buffer_ptr[i], write_buffer_size[i]);
+		    rewriteSDLC(0, write_buffer_ptr[i], &write_buffer_size[i]);
+		    if (write_buffer_size[i] > 0) {
+		      printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		      gettimeofday(&tv,NULL);
+		      pcap_rec.ts_sec = tv.tv_sec;
+		      pcap_rec.ts_usec = tv.tv_usec;
+		      pcap_rec.incl_len = write_buffer_size[i]-4;
+		      pcap_rec.orig_len = write_buffer_size[i]-4;
+		      fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+		      fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
+		      fflush(pcap_file);		    
+		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
+		    } else {
+		      fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
+		    }
 		  }
 		  
 
