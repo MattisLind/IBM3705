@@ -596,9 +596,10 @@ void *CS2_thread(void *arg) {
                   }
 
 		  if (icw_scf[t]&0x01) {   // send flag byte
+		    fprintf (stderr, "end_flag = %d.\n", end_flag);
 		    if (end_flag) {
 		      end_flag = 0;
-		      fprintf (stderr, "Send a flag byte. write_buffer_index=%d\n", write_buffer_index);
+		      fprintf (stderr, "Flag bit set - End of frame. Send a EOR record. write_buffer_index=%d\n", write_buffer_index);
 		      BLU_buf[j++] = 0xff;		    
 		      BLU_buf[j++] = 0xef;
 		      write_buffer_size[write_buffer_index++] = j-lastj;
@@ -606,6 +607,7 @@ void *CS2_thread(void *arg) {
 		      write_buffer_ptr[write_buffer_index] = BLU_buf + j;
 		    } else {
 		      // start of frame
+		      fprintf(stderr, "Flag bit set - Start of frame.\n");
 		      end_flag = 1;
 		    }
 		  } else {
@@ -631,13 +633,13 @@ void *CS2_thread(void *arg) {
                      fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
 		  fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
 		  fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
-		  
+		  fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
 		  for (int i=0; i<write_buffer_index; i++) {
 		    fprintf (stderr, "i=%d\n", i);
 		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
 		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		    rewriteSDLC(0, write_buffer_ptr[i], &write_buffer_size[i]);
-		    if (write_buffer_size[i] > 0) {
+		    if (write_buffer_size[i] > 3) {
 		      printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		      gettimeofday(&tv,NULL);
 		      pcap_rec.ts_sec = tv.tv_sec;
