@@ -448,7 +448,7 @@ void *CS2_thread(void *arg) {
                      fprintf(stderr, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
          //      icw_lne_stat[t] = RESET;  // Line state = RESET
-               icw_scf[t] &= 0x4A;     // Reset all check cond. bits.
+               icw_scf[t] &= 0x4B;     // Reset all check cond. bits.
                break;
 
             case 0x1:                  // Set mode
@@ -650,9 +650,11 @@ void *CS2_thread(void *arg) {
 		      fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
 		      fflush(pcap_file);		    
 		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
+		      usleep(20*write_buffer_size[i]);
 		    } else {
 		      fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
 		    }
+
 		  }
 		  
 
