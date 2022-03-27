@@ -230,6 +230,22 @@ int openSerial () {
   return fd;
 }
 
+static char * getTimeStr() {
+  static char tmp [256];
+  struct timeval tv;
+  gettimeofday(&tv,NULL);
+  sprintf(tmp, "%ld.%06ld", tv.tv_sec, tv.tv_usec);
+  return tmp;
+}
+
+void printFrame(const char * str, char * buf,int cnt) {
+  fprintf (stderr, "%s : ", str);
+  for (int i=0; i<cnt; i++) {
+    fprintf(stderr, "%02X ", 0xff &buf[i]);
+  }
+  fprintf (stderr, "\n");  
+}
+
 int readSDLC(int fd, unsigned char * buf, int * sum) {
   int ret=0;
   (*sum)=0;
@@ -237,7 +253,7 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
   do {
     ret = read (fd, buf+(*sum), 1);
     (*sum) += ret;
-    printFrame("Receive", buf, (*sum));
+    //printFrame("Receive", buf, (*sum));
     if ((*sum) >1) {
       fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[(*sum)-1], 0xff&buf[(*sum)-2], ret);
       fprintf (stderr, "%d %d\n", ((0xff & buf[(*sum)-1]) == 0xef), ((0xff & buf[(*sum)-2]) == 0xff));
@@ -246,7 +262,7 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
       end_of_frame = 0;
     }
   } while (!end_of_frame && ((*sum) > 0));
-  printFrame("Receive", buf, *sum);
+  //printFrame("Receive", buf, *sum);
   return  ((0xff & buf[*(sum)-1]) == 0xef);
 }
 
@@ -379,13 +395,6 @@ void proc_BLU(unsigned char *BLU_buf, int j);
 void Put_ICW(int i);
 void Get_ICW(int i);
 
-void printFrame(const char * str, char * buf,int cnt) {
-  fprintf (stderr, "%s : ", str);
-  for (int i=0; i<cnt; i++) {
-    fprintf(stderr, "%02X ", 0xff &buf[i]);
-  }
-  fprintf (stderr, "\n");  
-}
 
 
 /* Function to be run as a thread always must have the same signature:
@@ -426,11 +435,14 @@ void *CS2_thread(void *arg) {
    while(1) {
 //    for (i = 0; i < MAX_TBAR; i++) {     // Pending multiple line support !!!
          t = 0;                            // Temp for ONE line set.
-         icw_scf[t] |= 0x08;               // Turn DCD always on.
+
+
 
          // Obtain ICW lock to avoid sync issues with NCP coding
   
          pthread_mutex_lock(&icw_lock);
+	 fprintf (stderr, "%s Beginning of loop icw_scf = %02X.\n", getTimeStr(), icw_scf[t]);
+         icw_scf[t] |= 0x08;               // Turn DCD always on.	 
          if (icw_pcf[t] != icw_pcf_new) {  // pcf changed by NCP ?
             if (debug_reg & 0x40)   // Trace PCF state ?
                fprintf(stderr, "\n>>> CS2[%1X]: NCP changed PCF to %1X \n\r",
@@ -448,7 +460,7 @@ void *CS2_thread(void *arg) {
                      fprintf(stderr, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
          //      icw_lne_stat[t] = RESET;  // Line state = RESET
-               icw_scf[t] &= 0x4A;     // Reset all check cond. bits.
+               icw_scf[t] &= 0x4B;     // Reset all check cond. bits.
                break;
 
             case 0x1:                  // Set mode
@@ -486,8 +498,8 @@ void *CS2_thread(void *arg) {
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40) {  // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+		    fprintf(stderr, "\n%s >>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", getTimeStr(), icw_pcf[t]);
+                     fprintf(stderr, "\n%s <<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", getTimeStr(),icw_pcf[t], icw_pdf[t], j-1);
                   }
                }
                j = 0;                          // Reset buffer pointer
@@ -530,8 +542,8 @@ void *CS2_thread(void *arg) {
                   break;                              // Loop till inactive...
                icw_pdf[t] = BLU_buf[j++];
                if (debug_reg & 0x40) { // Trace PCF state ?
-                  fprintf(stderr, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
-                  fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+		 fprintf(stderr, "\n%s >>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", getTimeStr(),icw_pcf[t]);
+		 fprintf(stderr, "\n%s <<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", getTimeStr(), icw_pcf[t], icw_pdf[t], j-1);
                }
                icw_scf[t] |= 0x40;     // Set norm char serv flag
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
@@ -557,8 +569,8 @@ void *CS2_thread(void *arg) {
 
                   
                   if (debug_reg & 0x40) {    // Trace PCF state ?
-                     fprintf(stderr, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+		    fprintf(stderr, "\n%s <<< CS2[%1X]: PCF = 7 (re-)entered \n\r", getTimeStr(), icw_pcf[t]);
+		    fprintf(stderr, "\n%s <<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", getTimeStr(), icw_pcf[t], icw_pdf[t], j-1);
                   }
                   if (Eflg_rvcd == ON) {     // EFlag received ?
                      icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
@@ -576,7 +588,7 @@ void *CS2_thread(void *arg) {
 
             case 0x8:                  // Transmit initial-turn RTS on
                if (debug_reg & 0x40)   // Trace PCF state ?
-                  fprintf(stderr, "\n>>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", icw_pcf[t]);
+		 fprintf(stderr, "\n %s >>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", getTimeStr(), icw_pcf[t]);
                icw_scf[t] &= 0xFB;     // Reset flag detected flag
                // CTS is now on.
                icw_pcf_new = 0x9;      // Goto PCF = 9
@@ -589,17 +601,18 @@ void *CS2_thread(void *arg) {
             case 0x9:                  // Transmit normal
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;
+	       fprintf (stderr, "%s icw_scf = %02X.\n", getTimeStr(), icw_scf[t]);
                if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
                   if (debug_reg & 0x40) { // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 9 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n>>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j);
+		    fprintf(stderr, "\n %s >>> CS2[%1X]: PCF = 9 (re-)entered \n\r", getTimeStr(), icw_pcf[t]);
+                     fprintf(stderr, "\n %s >>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", getTimeStr(), icw_pcf[t], icw_pdf[t], j);
                   }
 
 		  if (icw_scf[t]&0x01) {   // send flag byte
-		    fprintf (stderr, "end_flag = %d.\n", end_flag);
+
 		    if (end_flag) {
 		      end_flag = 0;
-		      fprintf (stderr, "Flag bit set - End of frame. Send a EOR record. write_buffer_index=%d\n", write_buffer_index);
+		      fprintf (stderr, "%s Flag bit set - End of frame. Send a EOR record. write_buffer_index=%d\n", getTimeStr(), write_buffer_index);
 		      BLU_buf[j++] = 0xff;		    
 		      BLU_buf[j++] = 0xef;
 		      write_buffer_size[write_buffer_index++] = j-lastj;
@@ -607,7 +620,7 @@ void *CS2_thread(void *arg) {
 		      write_buffer_ptr[write_buffer_index] = BLU_buf + j;
 		    } else {
 		      // start of frame
-		      fprintf(stderr, "Flag bit set - Start of frame.\n");
+		      fprintf(stderr, "%s Flag bit set - Start of frame.\n", getTimeStr());
 		      end_flag = 1;
 		    }
 		  } else {
@@ -630,7 +643,7 @@ void *CS2_thread(void *arg) {
             case 0xC:                  // Transmit turnaround-turn RTS off
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
                   if (debug_reg & 0x40)   // Stderr PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		    fprintf(stderr, "\n %s >>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", getTimeStr(), icw_pcf[t]);
 		  fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
 		  fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
 		  fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
@@ -653,6 +666,7 @@ void *CS2_thread(void *arg) {
 		    } else {
 		      fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
 		    }
+		    usleep(500);     
 		  }
 		  
 
@@ -740,6 +754,7 @@ void Put_ICW(int abar) {               // See 3705 CE manauls for details.
 void Get_ICW(int abar) {               // See 3705 CE manauls for details.
    int tbar = (abar - 0x0840) >> 1;    // Get ICW table ptr from abar
    Eregs_Inp[0x44]  = (icw_scf[tbar] << 8)  | icw_pdf[tbar];
+   fprintf (stderr, "IN: icw_pdf=%02X icw_scf=%02X lvl=%d\n", 0xff & icw_pdf[tbar], 0xff & icw_scf[tbar], lvl);
    Eregs_Inp[0x45]  = (icw_lcd[tbar] << 12) | (icw_pcf[tbar] << 8) | icw_sdf[tbar];
    Eregs_Inp[0x46]  =  0xF0A5;             // Display reg (tbd)
    Eregs_Inp[0x47]  =  icw_Rflags[tbar];   // ICW 32 - 47

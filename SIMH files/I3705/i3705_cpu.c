@@ -158,7 +158,20 @@ Instruction formats:
 #include <sched.h>
 #include "i3705_defs.h"
 #include "i3705_Eregs.h"                                /* Exernal regs defs */
+#include <signal.h>
+#include <ctype.h>
+#include <time.h>
+#include <sys/time.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include <termios.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <assert.h>
 
 #define UNIT_V_MSIZE (UNIT_V_UF+3)                      /* dummy mask */
 #define UNIT_MSIZE   (1 << UNIT_V_MSIZE)
@@ -248,6 +261,14 @@ unsigned char crc_data;
    cpu_dev      CPU device descriptor
    cpu_mod      CPU modifiers list
 */
+
+static char * getTimeStr() {
+  static char tmp [256];
+  struct timeval tv;
+  gettimeofday(&tv,NULL);
+  sprintf(tmp, "%ld.%06ld", tv.tv_sec, tv.tv_usec);
+  return tmp;
+}
 
 UNIT cpu_unit = { UDATA (NULL, UNIT_FIX + UNIT_BINK, MAXMEMSIZE) };
 
@@ -2079,8 +2100,9 @@ while (reason == 0) {                          /* Loop until halted */
                   //debug_reg = 0x63;                 // Very very very temp HJS
                }
                if (Efld == 0x44) {             // ICW SCF & PDF
-                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4f;   // Only Serv Req, DCD & Pgm Flag
+		 icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4F;   // Only Serv Req, DCD & Pgm Flag
                   icw_pdf[tbar] =  Eregs_Out[0x44] & 0x00FF;
+		  fprintf (stderr, "%s OUT: tbar=%d icw_pdf=%02X icw_scf=%02X icw_pcf=%d lvl=%d\n", getTimeStr(), tbar, 0xff & icw_pdf[tbar], 0xff & icw_scf[tbar], 0xff & icw_pcf[0], lvl);
                   if (icw_pcf[0] != 0x07)               // TEMP
                      icw_pdf_reg = FILLED;     // PDF is filled for tx
                }
@@ -2088,11 +2110,18 @@ while (reason == 0) {                          /* Loop until halted */
                   icw_lcd[tbar] = (Eregs_Out[0x45] >> 4) & 0x0F;
                   icw_pcf_new =  Eregs_Out[0x45] & 0x0F;
                   icw_pcf_mod = 0x01;          // indicate pcf updated
+		  fprintf (stderr, "%s OUT: icw_lcd=%02X icw_pcf_new=%02X lvl=%d\n", getTimeStr(),0xff & icw_lcd[tbar], 0xff & icw_pcf_new, lvl);		  
                }
                                                // ICW SDF
-               if (Efld == 0x46) icw_sdf[tbar]    = (Eregs_Out[0x46] >> 2) & 0xFF;
+               if (Efld == 0x46) {
+		 icw_sdf[tbar]    = (Eregs_Out[0x46] >> 2) & 0xFF;
+		  fprintf (stderr, "%s OUT: icw_sdf=%02X lvl=%d\n", getTimeStr(),0xff & icw_sdf[tbar], lvl);		 
+	       }
                                                // ICW 34 - 45
-               if (Efld == 0x47) icw_Rflags[tbar] = (Eregs_Out[0x47] << 4) & 0x0070;
+               if (Efld == 0x47) {
+		 icw_Rflags[tbar] = (Eregs_Out[0x47] << 4) & 0x0070;
+		 fprintf (stderr, "%s OUT: icw_Rflags=%04X lvl=%d\n", getTimeStr(),0xffff & icw_Rflags[tbar], lvl);		 		 
+	       }
                // Release ICW update lock.
                pthread_mutex_unlock(&icw_lock);
             }
