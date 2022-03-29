@@ -371,7 +371,13 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
   } else {
     adjustedSize = (*size) - 4;
   }
-  for (int i; i < adjustedSize; i++) { // skip the CRC bytes of course.
+  fprintf(stderr, "ReCalculating CRC\n");
+  for (int i=0; i < adjustedSize; i++) { // skip the CRC bytes of course.
+    fprintf(stderr, "RecalcCRC: i=%d buffer[i]=%02X\n", i, buffer[i]&0xff);
+    if ((buffer[i]&0xff) == 0xff) {
+            fprintf(stderr, "Got an 0xff skipping one byte.\n");
+      i++;
+    }
     crc = calculateSDLCCrcChar(crc,buffer[i]);
   }
   fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
@@ -663,10 +669,11 @@ void *CS2_thread(void *arg) {
 		      fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
 		      fflush(pcap_file);		    
 		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
+		      usleep(500*write_buffer_size[i]);     
 		    } else {
 		      fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
 		    }
-		    usleep(500);     
+
 		  }
 		  
 
