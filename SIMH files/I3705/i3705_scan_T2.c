@@ -122,6 +122,9 @@
 #include <assert.h>
 
 #define MAX_TBAR   3                   // ICW table size (4 line sets)
+#define BAUD 19200                     // 19200 bps is approx 500 us per bit
+#define BITTIME 500
+#define BAUD_CODE 0x0a                 // 19200 bps 
 
 extern int32 debug_reg;
 extern int32 Eregs_Inp[];
@@ -193,20 +196,20 @@ int openSerial () {
   struct termios options;
   unsigned char ch;
   /* open the port */
-  fprintf(stderr, "devStr=%s\n", devStr);
+  //fprintf(stderr, "devStr=%s\n", devStr);
   fd = open(devStr, O_RDWR | O_NOCTTY | O_NDELAY);
-  fprintf(stderr, "open fd=%d", fd);
+  //fprintf(stderr, "open fd=%d", fd);
   ret = fcntl(fd, F_SETFL, 0);
   if (ret == -1) {
     perror("Error:");
   }
-  fprintf(stderr, "fcntl ret=%d",ret);
+  //fprintf(stderr, "fcntl ret=%d",ret);
 
 
 
 /* get the current options */
   ret = tcgetattr(fd, &options);
-  fprintf(stderr, "tcgetattr ret=%d",ret);
+  //fprintf(stderr, "tcgetattr ret=%d",ret);
   options.c_iflag     = 0;
   options.c_oflag     = 0; 
   options.c_cflag     = 0;
@@ -226,7 +229,7 @@ int openSerial () {
   ret=tcsetattr(fd, TCSANOW, &options);
   sleep(2); //required to make flush work, for some reason
   tcflush(fd,TCIOFLUSH);
-  fprintf(stderr, "tcsetattr ret=%d\n", ret);
+  //fprintf(stderr, "tcsetattr ret=%d\n", ret);
   return fd;
 }
 
@@ -239,8 +242,8 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
     (*sum) += ret;
     printFrame("Receive", buf, (*sum));
     if ((*sum) >1) {
-      fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[(*sum)-1], 0xff&buf[(*sum)-2], ret);
-      fprintf (stderr, "%d %d\n", ((0xff & buf[(*sum)-1]) == 0xef), ((0xff & buf[(*sum)-2]) == 0xff));
+      //fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[(*sum)-1], 0xff&buf[(*sum)-2], ret);
+      //fprintf (stderr, "%d %d\n", ((0xff & buf[(*sum)-1]) == 0xef), ((0xff & buf[(*sum)-2]) == 0xff));
       end_of_frame = ((((0xff & buf[*(sum)-1]) == 0xef) || ((0xff & buf[*(sum)-1]) == 0xfe)) && ((0xff & buf[*(sum)-2]) == 0xff));
     } else {
       end_of_frame = 0;
@@ -274,22 +277,22 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
   unsigned short crc = 0xffff;
   int adjustedSize;
   int ns, nr;
-  fprintf (stderr, "buffer[11]=%02X buffer[12]=%02X buffer[13]=%02X direction=%d\n", 0xff& buffer[11], 0xff&buffer[12], 0xff&buffer[13]&0xff, direction);
+  //fprintf (stderr, "buffer[11]=%02X buffer[12]=%02X buffer[13]=%02X direction=%d\n", 0xff& buffer[11], 0xff&buffer[12], 0xff&buffer[13]&0xff, direction);
   // Match the incoming message and see if it is going to be dropped.
   if (buffer[11] == 0x81 && buffer[12] == 0x06 && buffer[13] == 0x20 && direction == 1 && *size > 13) {
-    fprintf (stderr, "Detected a packet that is going to be dropped.\n");
+    //fprintf (stderr, "Detected a packet that is going to be dropped.\n");
     if (buffer[1] & 0x10) {
-      fprintf(stderr, "Final bit set - replace with a new RR packet.\n");
+      //fprintf(stderr, "Final bit set - replace with a new RR packet.\n");
       buffer[1] = (buffer[1] & 0xE0) | 0x11;  // RR
       *size = 4; // including the CRC					       
     } else {
-      fprintf(stderr, "Final bit not set - drop packet.\n");
+      //fprintf(stderr, "Final bit not set - drop packet.\n");
       *size = 0;
     }
     // act as if the sender actually sent the I frame.
     Terminal_Sender_diff++;
     if (Terminal_Sender_diff==8) Terminal_Sender_diff=0;
-    fprintf(stderr, "Terminal_sender_diff is now %d\n", Terminal_Sender_diff);
+    //fprintf(stderr, "Terminal_sender_diff is now %d\n", Terminal_Sender_diff);
   }
   // Now we need to handle the diffs and recalculate N(S) and N(R)
   if (direction) {
@@ -298,7 +301,7 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
       // info
       ns = (buffer[1]>>1) & 0x7;
       nr = (buffer[1]>>5) & 0x7;
-      fprintf(stderr, "Got an info frame from the terminal with N(S)=%d and N(R)=%d\n", ns, nr);
+      //fprintf(stderr, "Got an info frame from the terminal with N(S)=%d and N(R)=%d\n", ns, nr);
       nr += IBM3705_Sender_diff;
       nr = nr & 0x7;
       ns -= Terminal_Sender_diff;
@@ -306,27 +309,27 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
       buffer[1] &= 0x11;
       buffer[1] |= (ns << 1);
       buffer[1] |= (nr << 5);
-      fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
+      //fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
     } else if ((buffer[1] & 0x3) == 0x1) {
       // Supervisory frames like RR
       nr = (buffer[1]>>5) & 0x7;
-      fprintf(stderr, "Got an supervisory frame from the terminal with N(R)=%d\n", nr);
+      //fprintf(stderr, "Got an supervisory frame from the terminal with N(R)=%d\n", nr);
       nr += IBM3705_Sender_diff;
       nr = nr & 0x7;
       buffer[1] &= 0x1F;
       buffer[1] |= (nr << 5);      
-      fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
+      //fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
     } else if (buffer[1] == 0x93) {
       IBM3705_Sender_diff = 0; 
       Terminal_Sender_diff = 0;
-      fprintf(stderr, "Got a SNRM - resetting diff counts\n");      
+      //fprintf(stderr, "Got a SNRM - resetting diff counts\n");      
     }
   } else {
     if ((buffer[1] & 0x1) == 0) {
       // info
       ns = (buffer[1]>>1) & 0x7;
       nr = (buffer[1]>>5) & 0x7;
-      fprintf(stderr, "Got an info frame from the IBM3705 with N(S)=%d and N(R)=%d\n", ns, nr);
+      //fprintf(stderr, "Got an info frame from the IBM3705 with N(S)=%d and N(R)=%d\n", ns, nr);
       nr += Terminal_Sender_diff;
       nr = nr & 0x7;
       ns -= IBM3705_Sender_diff;
@@ -334,20 +337,20 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
       buffer[1] &= 0x11;
       buffer[1] |= (ns << 1);
       buffer[1] |= (nr << 5);
-      fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
+      //fprintf(stderr, "After adjusting > N(S)=%d N(R)=%d SDLC Control byte=%02X \n",ns, nr, buffer[1]);      
     } else if ((buffer[1] & 0x3) == 0x1) {
       // Supervisory frames like RR
       nr = (buffer[1]>>5) & 0x7;
-      fprintf(stderr, "Got an supervisory frame from the IBM3705 with N(R)=%d\n", nr);
+      //fprintf(stderr, "Got an supervisory frame from the IBM3705 with N(R)=%d\n", nr);
       nr += Terminal_Sender_diff;
       nr = nr & 0x7;
       buffer[1] &= 0x1F;
       buffer[1] |= (nr << 5);      
-      fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
+      //fprintf(stderr, "After adjusting >  N(R)=%d SDLC Control byte =%02X \n", nr, buffer[1]);      
     } else if (buffer[1] == 0x93) {
       IBM3705_Sender_diff = 0; 
       Terminal_Sender_diff = 0;
-      fprintf(stderr, "Got a SNRM - resetting diff counts\n");
+      //fprintf(stderr, "Got a SNRM - resetting diff counts\n");
     }
   }
   if (direction) { // from terminal
@@ -355,10 +358,11 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
   } else {
     adjustedSize = (*size) - 4;
   }
-  for (int i; i < adjustedSize; i++) { // skip the CRC bytes of course.
+  for (int i=0; i < adjustedSize; i++) { // skip the CRC bytes of course.
+    if (buffer[i] == 0xff) i++;
     crc = calculateSDLCCrcChar(crc,buffer[i]);
   }
-  fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
+  //fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
   buffer[adjustedSize] =(~crc) & 0xff;
   if (buffer[adjustedSize] == 0xff) {
     adjustedSize++;
@@ -406,9 +410,10 @@ void *CS2_thread(void *arg) {
    pcap_hdr_t pcap;
    pcaprec_hdr_t pcap_rec;
    struct timeval tv;
-   
+   char setBaudRateCommand[] = {0xff, 0xf0, BAUD_CODE}; 
    fprintf(stderr, "\nCS2: thread %ld started succesfully...\n",syscall(SYS_gettid));
    fd = openSerial();
+   write (fd, setBaudRateCommand, 3);  
    pcap_file = fopen ("i3705-sdlc.pcap", "w");
    if (pcap_file == NULL) {
      fprintf(stderr, "Failed to open pcap - file.\r\n");
@@ -432,9 +437,9 @@ void *CS2_thread(void *arg) {
   
          pthread_mutex_lock(&icw_lock);
          if (icw_pcf[t] != icw_pcf_new) {  // pcf changed by NCP ?
-            if (debug_reg & 0x40)   // Trace PCF state ?
-               fprintf(stderr, "\n>>> CS2[%1X]: NCP changed PCF to %1X \n\r",
-                       icw_pcf[t], icw_pcf_new);
+	   //            if (debug_reg & 0x40)   // Trace PCF state ?
+           //    fprintf(stderr, "\n>>> CS2[%1X]: NCP changed PCF to %1X \n\r",
+           //            icw_pcf[t], icw_pcf_new);
             if (icw_pcf_new == 0x0)        // NCP changed PCF = 0 ?
                icw_lne_stat[t] = RESET;    // Line state = RESET
             icw_pcf_prev[t] = icw_pcf[t];  // Save current pcf and
@@ -444,8 +449,8 @@ void *CS2_thread(void *arg) {
          switch (icw_pcf[t]) {
             case 0x0:                  // NO-OP
                if (icw_pcf_prev[t] != icw_pcf[t]) {
-                  if (debug_reg & 0x40)    // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		 //if (debug_reg & 0x40)    // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 0 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
          //      icw_lne_stat[t] = RESET;  // Line state = RESET
                icw_scf[t] &= 0x4B;     // Reset all check cond. bits.
@@ -453,8 +458,8 @@ void *CS2_thread(void *arg) {
 
             case 0x1:                  // Set mode
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40)  // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 1 entered, next PCF will be 0 \n\r", icw_pcf[t]);
+		 //if (debug_reg & 0x40)  // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 1 entered, next PCF will be 0 \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 0...
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -463,8 +468,8 @@ void *CS2_thread(void *arg) {
 
             case 0x2:                  // Mon DSR on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 2 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+                 // if (debug_reg & 0x40)   // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 2 entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 4... (Via PCF = 0)
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -473,8 +478,8 @@ void *CS2_thread(void *arg) {
 
             case 0x3:                  // Mon RI or DSR on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 3 entered, next PCF will be 0 \n\r", icw_pcf[t]);
+                 // if (debug_reg & 0x40)   // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 3 entered, next PCF will be 0 \n\r", icw_pcf[t]);
                   icw_scf[t] |= 0x40;  // Set norm char serv flag
                   icw_pcf_new = 0x0;   // Goto PCF = 0...
                   CS2_req_L2_int = ON; // ...and issue a L2 int
@@ -485,10 +490,10 @@ void *CS2_thread(void *arg) {
             case 0x5:                  // Mon 7E flag - allow DSR error
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40) {  // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
-                  }
+		 //if (debug_reg & 0x40) {  // Trace PCF state ?
+		    //   fprintf(stderr, "\n>>> CS2[%1X]: PCF = 5 entered, next PCF will be 6 \n\r", icw_pcf[t]);
+		 //   fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+		 //  }
                }
                j = 0;                          // Reset buffer pointer
 	       /*               if (icw_lne_stat[t] == RESET)   // Line is silent. Wait for NCP time out.
@@ -498,12 +503,12 @@ void *CS2_thread(void *arg) {
 	       do {
 		 normal_frame = readSDLC(fd, BLU_buf, &size);
 		 if (normal_frame && size > 0) {
-		   printFrame("Before rewriteSDLC : ", BLU_buf, size);
+		   //   printFrame("Before rewriteSDLC : ", BLU_buf, size);
 		   rewriteSDLC (1, BLU_buf, &size);
-		   printFrame("After rewriteSDLC : ", BLU_buf, size);
+		   //printFrame("After rewriteSDLC : ", BLU_buf, size);
 		 }
 	       } while (size>0 && !normal_frame);
-	       printFrame("Receive : ", BLU_buf, size);
+	       //printFrame("Receive : ", BLU_buf, size);
 	     // write pcap_buf to file
 	       if (size>=8) {
 	         gettimeofday(&tv,NULL);
@@ -529,10 +534,10 @@ void *CS2_thread(void *arg) {
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;                              // Loop till inactive...
                icw_pdf[t] = BLU_buf[j++];
-               if (debug_reg & 0x40) { // Trace PCF state ?
-                  fprintf(stderr, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
-                  fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
-               }
+               //if (debug_reg & 0x40) { // Trace PCF state ?
+               //   fprintf(stderr, "\n>>> CS2[%1X]: PCF = 6 entered, next PCF will be 7 \n\r", icw_pcf[t]);
+               //   fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+               //}
                icw_scf[t] |= 0x40;     // Set norm char serv flag
                icw_scf[t] &= 0xFB;     // Reset 7E detected flag
                icw_pdf_reg = FILLED;
@@ -556,10 +561,10 @@ void *CS2_thread(void *arg) {
 		 }
 
                   
-                  if (debug_reg & 0x40) {    // Trace PCF state ?
-                     fprintf(stderr, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
-                  }
+                 // if (debug_reg & 0x40) {    // Trace PCF state ?
+                 //    fprintf(stderr, "\n<<< CS2[%1X]: PCF = 7 (re-)entered \n\r", icw_pcf[t]);
+                 //    fprintf(stderr, "\n<<< CS2[%1X]: Receiving PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j-1);
+                 // }
                   if (Eflg_rvcd == ON) {     // EFlag received ?
                      icw_lne_stat[t] = TX;   // Line turnaround to transmitting...
                      icw_scf[t] |= 0x44;     // Set char serv and flag det bit
@@ -575,8 +580,8 @@ void *CS2_thread(void *arg) {
                break;
 
             case 0x8:                  // Transmit initial-turn RTS on
-               if (debug_reg & 0x40)   // Trace PCF state ?
-                  fprintf(stderr, "\n>>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", icw_pcf[t]);
+	      //if (debug_reg & 0x40)   // Trace PCF state ?
+              //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 8 entered, next PCF will be 9 \n\r", icw_pcf[t]);
                icw_scf[t] &= 0xFB;     // Reset flag detected flag
                // CTS is now on.
                icw_pcf_new = 0x9;      // Goto PCF = 9
@@ -590,16 +595,16 @@ void *CS2_thread(void *arg) {
                if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
                   break;
                if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
-                  if (debug_reg & 0x40) { // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = 9 (re-)entered \n\r", icw_pcf[t]);
-                     fprintf(stderr, "\n>>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j);
-                  }
+		 //  if (debug_reg & 0x40) { // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = 9 (re-)entered \n\r", icw_pcf[t]);
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: Transmitting PDF = *** %02X ***, j = %d \n\r", icw_pcf[t], icw_pdf[t], j);
+                 // }
 
 		  if (icw_scf[t]&0x01) {   // send flag byte
-		    fprintf (stderr, "end_flag = %d.\n", end_flag);
+		    // fprintf (stderr, "end_flag = %d.\n", end_flag);
 		    if (end_flag) {
 		      end_flag = 0;
-		      fprintf (stderr, "Flag bit set - End of frame. Send a EOR record. write_buffer_index=%d\n", write_buffer_index);
+		      // fprintf (stderr, "Flag bit set - End of frame. Send a EOR record. write_buffer_index=%d\n", write_buffer_index);
 		      BLU_buf[j++] = 0xff;		    
 		      BLU_buf[j++] = 0xef;
 		      write_buffer_size[write_buffer_index++] = j-lastj;
@@ -607,7 +612,7 @@ void *CS2_thread(void *arg) {
 		      write_buffer_ptr[write_buffer_index] = BLU_buf + j;
 		    } else {
 		      // start of frame
-		      fprintf(stderr, "Flag bit set - Start of frame.\n");
+		      // fprintf(stderr, "Flag bit set - Start of frame.\n");
 		      end_flag = 1;
 		    }
 		  } else {
@@ -629,18 +634,18 @@ void *CS2_thread(void *arg) {
 
             case 0xC:                  // Transmit turnaround-turn RTS off
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40)   // Stderr PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
-		  fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
-		  fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
-		  fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
+		 //if (debug_reg & 0x40)   // Stderr PCF state ?
+		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		 // fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
+		 // fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
+		 // fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
 		  for (int i=0; i<write_buffer_index; i++) {
-		    fprintf (stderr, "i=%d\n", i);
-		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
-		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		    // fprintf (stderr, "i=%d\n", i);
+		    //fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
+		    //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		    rewriteSDLC(0, write_buffer_ptr[i], &write_buffer_size[i]);
 		    if (write_buffer_size[i] > 3) {
-		      printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		      // printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		      gettimeofday(&tv,NULL);
 		      pcap_rec.ts_sec = tv.tv_sec;
 		      pcap_rec.ts_usec = tv.tv_usec;
@@ -648,22 +653,22 @@ void *CS2_thread(void *arg) {
 		      pcap_rec.orig_len = write_buffer_size[i]-4;
 		      fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
 		      fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
-		      fflush(pcap_file);		    
-		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
-		      usleep(20*write_buffer_size[i]);
+		      fflush(pcap_file);		   
+ 		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
+		      usleep(BITTIME*write_buffer_size[i]);
 		    } else {
-		      fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
+		      //fprintf(stderr, "Packet dropped after rewriteSDLC.\n");
 		    }
 
 		  }
 		  
 
-                  if (debug_reg & 0x20) {
-                     fprintf(stderr, "\n>>> CS2[%1X]: BLU_buf = ", icw_pcf[t]);
-                     for (s = (char *) &BLU_buf[0], i = 0; i < 16; ++i, ++s)
-                        fprintf(stderr, "%02X ", (int) *s & 0xFF);
-                     fprintf(stderr, "\n");
-                  }
+                  //if (debug_reg & 0x20) {
+		  //  fprintf(stderr, "\n>>> CS2[%1X]: BLU_buf = ", icw_pcf[t]);
+		  // for (s = (char *) &BLU_buf[0], i = 0; i < 16; ++i, ++s)
+                  //      fprintf(stderr, "%02X ", (int) *s & 0xFF);
+                  //   fprintf(stderr, "\n");
+                  //}
                   icw_lne_stat[t] = RX;   // Line turnaround to receiving...
                   j = 0;                  // Reset Rx buffer pointer.
                   icw_scf[t] |= 0x40;     // Set norm char serv flag
@@ -675,8 +680,8 @@ void *CS2_thread(void *arg) {
 
             case 0xD:                     // Transmit turnaround-keep RTS on
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
-                  if (debug_reg & 0x40)   // Trace PCF state ?
-                     fprintf(stderr, "\n>>> CS2[%1X]: PCF = D entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
+		 //if (debug_reg & 0x40)   // Trace PCF state ?
+                 //    fprintf(stderr, "\n>>> CS2[%1X]: PCF = D entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
                }
                // NO CS2_req_L2_int !
                break;
@@ -699,9 +704,9 @@ void *CS2_thread(void *arg) {
          // =========  POST-PROCESSING SCAN CYCLE  =========
 
          if (CS2_req_L2_int) {         // CS2 L2 interrupt request ?
-            if (debug_reg & 0x40)      // Trace PCF state ?
-               fprintf(stderr, "\n>>> CS2[%1X]: SVCL2 interrupt issued for PCF = %1X \n\r",
-                       icw_pcf_prev[t], icw_pcf_prev[t]);
+	   //if (debug_reg & 0x40)      // Trace PCF state ?
+           //    fprintf(stderr, "\n>>> CS2[%1X]: SVCL2 interrupt issued for PCF = %1X \n\r",
+	   //             icw_pcf_prev[t], icw_pcf_prev[t]);
             pthread_mutex_lock(&r77_lock);
  //         Eregs_Inp[0x77] |= 0x4000; // Indicate L2 scanner interrupt
             pthread_mutex_unlock(&r77_lock);
@@ -713,7 +718,7 @@ void *CS2_thread(void *arg) {
             icw_pcf[t] = icw_pcf_new;       // set new current pcf
          }
          if (debug_reg & 0x40 & (icw_pcf[t] != 0))         // Trace Prev / Curr PCF state ?
-            fprintf(stderr, "\n>>> CS2[%1X]: Next PCF = %1X \n\r",
+	   fprintf(stderr, "\n>>> CS2[%1X]: Next PCF = %1X \n\r",
                     icw_pcf_prev[t], icw_pcf[t]);
          // Release the ICW lock
          pthread_mutex_unlock(&icw_lock);
