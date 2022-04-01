@@ -240,7 +240,7 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
   do {
     ret = read (fd, buf+(*sum), 1);
     (*sum) += ret;
-    printFrame("Receive", buf, (*sum));
+    //printFrame("Receive", buf, (*sum));
     if ((*sum) >1) {
       //fprintf (stderr, "%02x %02x ret=%d\n", 0xff &buf[(*sum)-1], 0xff&buf[(*sum)-2], ret);
       //fprintf (stderr, "%d %d\n", ((0xff & buf[(*sum)-1]) == 0xef), ((0xff & buf[(*sum)-2]) == 0xff));
@@ -249,7 +249,7 @@ int readSDLC(int fd, unsigned char * buf, int * sum) {
       end_of_frame = 0;
     }
   } while (!end_of_frame && ((*sum) > 0));
-  printFrame("Receive", buf, *sum);
+  //printFrame("Receive", buf, *sum);
   return  ((0xff & buf[*(sum)-1]) == 0xef);
 }
 
@@ -353,29 +353,39 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
       //fprintf(stderr, "Got a SNRM - resetting diff counts\n");
     }
   }
+  adjustedSize = (*size);
   if (direction) { // from terminal
-    adjustedSize = (*size) - 6;
-  } else {
-    adjustedSize = (*size) - 4;
+    adjustedSize -= 2;
   }
+  adjustedSize -=2;
+  if (buffer[adjustedSize-1] == 0xff) {
+    adjustedSize--;  // go backwards to find a FF in the CRC that we need to remove
+  }
+  adjustedSize--;
+  if (buffer[adjustedSize-1] == 0xff) {
+    adjustedSize--;
+  }
+  adjustedSize--;
   for (int i=0; i < adjustedSize; i++) { // skip the CRC bytes of course.
     if (buffer[i] == 0xff) i++;
     crc = calculateSDLCCrcChar(crc,buffer[i]);
   }
-  //fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
+  fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
   buffer[adjustedSize] =(~crc) & 0xff;
   if (buffer[adjustedSize] == 0xff) {
     adjustedSize++;
     buffer[adjustedSize] = 0xff;
-    (*size)++;
   }
   adjustedSize++;
   buffer[adjustedSize] = ((~crc) >> 8) & 0xff;
   if (buffer[adjustedSize] == 0xff) {
     adjustedSize ++;
     buffer[adjustedSize] = 0xff;
-    (*size)++;
   }
+  adjustedSize++;
+  buffer[adjustedSize++] = 0xff; // Add the end flag again since it might have been destroyed.
+  buffer[adjustedSize++] = 0xef;
+  (*size) = adjustedSize;
 }
 
 
@@ -384,7 +394,7 @@ void Put_ICW(int i);
 void Get_ICW(int i);
 
 void printFrame(const char * str, char * buf,int cnt) {
-  fprintf (stderr, "%s : ", str);
+  fprintf (stderr, "%s %d bytes : ", str, cnt);
   for (int i=0; i<cnt; i++) {
     fprintf(stderr, "%02X ", 0xff &buf[i]);
   }
@@ -503,7 +513,7 @@ void *CS2_thread(void *arg) {
 	       do {
 		 normal_frame = readSDLC(fd, BLU_buf, &size);
 		 if (normal_frame && size > 0) {
-		   //   printFrame("Before rewriteSDLC : ", BLU_buf, size);
+		   //printFrame("Before rewriteSDLC : ", BLU_buf, size);
 		   rewriteSDLC (1, BLU_buf, &size);
 		   //printFrame("After rewriteSDLC : ", BLU_buf, size);
 		 }
@@ -514,13 +524,13 @@ void *CS2_thread(void *arg) {
 	         gettimeofday(&tv,NULL);
 	         pcap_rec.ts_sec = tv.tv_sec;
 	         pcap_rec.ts_usec = tv.tv_usec;
-	         pcap_rec.incl_len = size - 6;
-	         pcap_rec.orig_len = size -6;
+	         pcap_rec.incl_len = size - 4;
+	         pcap_rec.orig_len = size -4;
 	         fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
-	         fwrite (BLU_buf, size -6, 1, pcap_file);
+	         fwrite (BLU_buf, size -4, 1, pcap_file);
 	         fflush(pcap_file);
 	       }
-	       size -=4; // skip the CRC calc and EOR
+	       size -=2; // skip the CRC calc and EOR
                // Line state is receiving, wait for BFlag...
                if (size  > 0) {       // we got a normal frame (not abort) ?
                   icw_scf[t]  |= 0x04;         // Set flag detected. (NO Serv bit)
@@ -636,16 +646,17 @@ void *CS2_thread(void *arg) {
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
 		 //if (debug_reg & 0x40)   // Stderr PCF state ?
 		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
-		 // fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
-		 // fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
-		 // fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
+		 fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
+		 fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
+		 fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
 		  for (int i=0; i<write_buffer_index; i++) {
-		    // fprintf (stderr, "i=%d\n", i);
-		    //fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
-		    //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		    fprintf (stderr, "i=%d\n", i);
+		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
+		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		    rewriteSDLC(0, write_buffer_ptr[i], &write_buffer_size[i]);
+		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);		    
 		    if (write_buffer_size[i] > 3) {
-		      // printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		      //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		      gettimeofday(&tv,NULL);
 		      pcap_rec.ts_sec = tv.tv_sec;
 		      pcap_rec.ts_usec = tv.tv_usec;
