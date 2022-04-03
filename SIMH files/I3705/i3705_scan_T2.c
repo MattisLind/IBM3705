@@ -123,8 +123,8 @@
 
 #define MAX_TBAR   3                   // ICW table size (4 line sets)
 #define BAUD 19200                     // 19200 bps is approx 500 us per bit
-#define BITTIME 500
-#define BAUD_CODE 0x0a                 // 19200 bps 
+#define BITTIME 20
+#define BAUD_CODE 0x0b                 // 19200 bps 
 
 extern int32 debug_reg;
 extern int32 Eregs_Inp[];
@@ -370,7 +370,7 @@ void rewriteSDLC (int direction, unsigned char * buffer, int * size) {
     if (buffer[i] == 0xff) i++;
     crc = calculateSDLCCrcChar(crc,buffer[i]);
   }
-  fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
+  //fprintf(stderr, "Old CRC = %02X%02X new CRC=%04X\n", 0xff&buffer[adjustedSize], 0xff&buffer[adjustedSize+1], (~crc) & 0xffff);
   buffer[adjustedSize] =(~crc) & 0xff;
   if (buffer[adjustedSize] == 0xff) {
     adjustedSize++;
@@ -436,8 +436,8 @@ void *CS2_thread(void *arg) {
    pcap.snaplen = 2048;        /* max length of captured packets, in octets */
    pcap.network = 268;        /* data link type */
 
-   fwrite (&pcap, sizeof pcap, 1, pcap_file);
-   fflush(pcap_file);
+   //fwrite (&pcap, sizeof pcap, 1, pcap_file);
+   //fflush(pcap_file);
    while(1) {
 //    for (i = 0; i < MAX_TBAR; i++) {     // Pending multiple line support !!!
          t = 0;                            // Temp for ONE line set.
@@ -526,9 +526,9 @@ void *CS2_thread(void *arg) {
 	         pcap_rec.ts_usec = tv.tv_usec;
 	         pcap_rec.incl_len = size - 4;
 	         pcap_rec.orig_len = size -4;
-	         fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
-	         fwrite (BLU_buf, size -4, 1, pcap_file);
-	         fflush(pcap_file);
+	         //fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+	         //fwrite (BLU_buf, size -4, 1, pcap_file);
+	         //fflush(pcap_file);
 	       }
 	       size -=2; // skip the CRC calc and EOR
                // Line state is receiving, wait for BFlag...
@@ -646,15 +646,15 @@ void *CS2_thread(void *arg) {
                if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
 		 //if (debug_reg & 0x40)   // Stderr PCF state ?
 		    //fprintf(stderr, "\n>>> CS2[%1X]: PCF = C entered, next PCF will be set by NCP \n\r", icw_pcf[t]);
-		 fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
-		 fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
-		 fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
+		 //fprintf (stderr, "BLU_buf=%p\n", BLU_buf);
+		 //fprintf (stderr, "write_buffer_index = %d \n", write_buffer_index);
+		 //fprintf (stderr, "end_flag = %d - now clearing it!.\n", end_flag);
 		  for (int i=0; i<write_buffer_index; i++) {
-		    fprintf (stderr, "i=%d\n", i);
-		    fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
-		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
+		    //fprintf (stderr, "i=%d\n", i);
+		    //fprintf(stderr, "write_buffer_ptr = %p write_buffer_size = %d\n", write_buffer_ptr[i], write_buffer_size[i]);
+		    //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		    rewriteSDLC(0, write_buffer_ptr[i], &write_buffer_size[i]);
-		    printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);		    
+		    //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);		    
 		    if (write_buffer_size[i] > 3) {
 		      //printFrame("Send : ", write_buffer_ptr[i], write_buffer_size[i]);
 		      gettimeofday(&tv,NULL);
@@ -662,9 +662,9 @@ void *CS2_thread(void *arg) {
 		      pcap_rec.ts_usec = tv.tv_usec;
 		      pcap_rec.incl_len = write_buffer_size[i]-4;
 		      pcap_rec.orig_len = write_buffer_size[i]-4;
-		      fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
-		      fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
-		      fflush(pcap_file);		   
+		      //fwrite (&pcap_rec, sizeof pcap_rec, 1, pcap_file);
+		      //fwrite (write_buffer_ptr[i], write_buffer_size[i]-4, 1, pcap_file);
+		      //fflush(pcap_file);		   
  		      write (fd, write_buffer_ptr[i], write_buffer_size[i]);
 		      usleep(BITTIME*write_buffer_size[i]);
 		    } else {
