@@ -11,4 +11,8 @@ One major culprit to get this working was to remove the "NOTIFY" message sent by
 
 ![Informer 213](https://i.imgur.com/pRhDuGn.jpg)
 
+A videoclip showing the setup:
+
+[![Watch the video](https://img.youtube.com/vi/TscJ_R0a5i4/maxresdefault.jpg)](https://youtu.be/TscJ_R0a5i4)
+
 
