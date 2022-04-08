@@ -87,3 +87,29 @@ A logon mode entry determines which entry in the applicable logon mode table is 
 Specifies the name of a USS table that VTAM® uses to process character-coded input that it receives from the logical unit.
 
 A terminal user can issue a USS command by coding the LANGTAB operand. This causes a second USS table to be associated with the logical unit, which overrides the table specified with USSTAB. If you do not code USSTAB and a LANGTAB USS table is not in use, the IBM®-supplied USS table (ISTINCDT) is used. For more information on USS tables, see Unformatted system services tables.
+
+### FEATUR2
+
+#### FEATUR2=EDATS
+#### FEATUR2=NOEDATS
+Specifies whether this terminal has the extended data stream feature. You cannot use this operand for terminals attached by SDLC lines.
+#### FEATUR2=DUALCSE
+#### FEATUR2=LOWERCSE
+Specifies how VTAM® sends alphabetical characters coded with the TEXT operand on a USSMSG macroinstruction to a non-SNA terminal over the SSCP-LU session. This value does not affect non-alphabetical characters, or any characters coded on the BUFFER operand of a USSMSG macroinstruction.
+Code LOWERCSE to indicate that alphabetical characters are sent to the terminal over the SSCP-LU session in lowercase. Code DUALCSE to indicate that VTAM sends all characters as they are coded in the USSMSG macroinstruction.
+
+#### FEATUR2=MODEL1
+#### FEATUR2=MODEL2
+Identifies the specific model number (Model 1 or 2) for this 3275, 3277, 3284, or 3286 component. Code MODEL1 for those devices that have a default screen or buffer size of 480 bytes. Code MODEL2 for those devices that have a default screen or buffer size of 1920 bytes.
+This information is available to an application program as part of the device characteristics pertaining to this terminal. You can obtain those characteristics by using the INQUIRE macroinstruction. For more information on using the INQUIRE macroinstruction, see z/OS Communications Server: SNA Programming.
+
+#### FEATUR2=NOPRINTR
+#### FEATUR2=PRINTR
+Specifies whether this terminal has an attached IBM® 3284 Model 3 printer. This operand is valid only if TERM=3275.
+#### FEATUR2=NOSELPEN
+#### FEATUR2=SELPEN
+Specifies whether this terminal supports a selector pen.
+
+### MODETAB
+
+Specifies the name of a logon mode table to be used for the logical unit. The name you code must be the name of a logon mode table created as described in Logon mode table. If you do not supply a logon mode table for the logical unit on the MODETAB operand, an IBM®-supplied default logon mode table (ISTINCLM) is used. If you specify a table, both the table you specify and the default table are used.
