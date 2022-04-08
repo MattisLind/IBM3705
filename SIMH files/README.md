@@ -69,3 +69,21 @@ TK4-
 * VTAM LOGMODE TABLE SYS1.VTAMSRC(BSPLMT01) - ISTINCLM
 * VTAM LOGON INTERPRET TABLE SYS1.VTAMSRC(BSPLIN01)
 * VTAM USS TABLE FOR TK4- SYS1.VTAMSRC(BSPUDT01) ISTINDT
+
+### LOGMODE
+
+Specifies the name of a logon mode table to be used to correlate each logon mode name with a set of session parameters for the logical unit. The name you code must be the name of a logon mode table created as described in Logon mode table. If you do not supply a logon mode table for the logical unit on the MODETAB operand, an IBM®-supplied default logon mode table (ISTINCLM) is used. If you specify a table, both the table you specify and the default table are used.
+
+### DLOGMOD
+
+Specifies the name of the logon mode table entry used by default if one is not otherwise provided. If you do not code this operand and the name of a logon mode table entry is not otherwise provided, VTAM® uses the first entry in the applicable logon mode table (specified on the MODETAB operand or used by default).
+
+If you specify MODETAB, the entry must be in either the specified table or in ISTINCLM, an IBM®-supplied logon mode table. If you do not specify MODETAB, the entry must be in ISTINCLM.
+
+A logon mode entry determines which entry in the applicable logon mode table is to provide a set of session parameters for the application program if the application program is a secondary logical unit (SLU). The name specified on the DLOGMOD operand must be the name of an entry in a logon mode table.
+
+### USSTAB
+
+Specifies the name of a USS table that VTAM® uses to process character-coded input that it receives from the logical unit.
+
+A terminal user can issue a USS command by coding the LANGTAB operand. This causes a second USS table to be associated with the logical unit, which overrides the table specified with USSTAB. If you do not code USSTAB and a LANGTAB USS table is not in use, the IBM®-supplied USS table (ISTINCDT) is used. For more information on USS tables, see Unformatted system services tables.
