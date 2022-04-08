@@ -70,6 +70,173 @@ TK4-
 * VTAM LOGON INTERPRET TABLE SYS1.VTAMSRC(BSPLIN01)
 * VTAM USS TABLE FOR TK4- SYS1.VTAMSRC(BSPUDT01) ISTINDT
 
+### BSPLMT01
+```
+**************************************************************
+*                                                            *
+* NAME: BSPLMT01                                             *
+*                                                            *
+* TYPE: ASSEMBLER SOURCE                                     *
+*                                                            *
+* DESC: VTAM LOGMODE TABLE                                   *
+*                                                            *
+**************************************************************
+BSPLMT01 MODETAB
+*****************************************************************
+* NON-SNA 3270 LOCAL TERMINALS                                  *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+S3270    MODEENT LOGMODE=S3270,                                        X
+               FMPROF=X'02',                                           X
+               TSPROF=X'02',                                           X
+               PRIPROT=X'71',                                          X
+               SECPROT=X'40',                                          X
+               COMPROT=X'2000',                                        X
+               PSERVIC=X'000000000000000000000200'
+*****************************************************************
+* NON-SNA 3270 LOCAL TERMINALS                                  *
+*      PRIMARY SCREEN   : MODEL 5                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+S32785   MODEENT LOGMODE=S32785,                                       X
+               FMPROF=X'02',                                           X
+               TSPROF=X'02',                                           X
+               PRIPROT=X'71',                                          X
+               SECPROT=X'40',                                          X
+               COMPROT=X'2000',                                        X
+               PSERVIC=X'00000000000018501B847F00'
+*****************************************************************
+* 3274 MODEL 1C WITH MODEL 2 SCREEN (REMOTE SNA)                *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+D4C32782 MODEENT LOGMODE=D4C32782,                                     X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'87F8',                                        X
+               PSERVIC=X'020000000000185020507F00'
+*****************************************************************
+*      3276 SNA WITH MODEL 2 SCREEN (REMOTE SNA)                *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+D6327802 MODEENT LOGMODE=D6327802,                                     X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'88F8',                                        X
+               PSERVIC=X'020000000000185000007E00'
+*****************************************************************
+*      3274 1C SNA WITH MODEL 5 SCREEN (REMOTE SNA)             *
+*      PRIMARY SCREEN   : MODEL 5                               *
+*      SECONDARY SCREEN : NONE                                  *
+*****************************************************************
+D4C32785 MODEENT LOGMODE=D4C32785,                                     X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'87F8',                                        X
+               PSERVIC=X'0200000000001B8400007E00'
+*****************************************************************
+*      3276 SNA WITH MODEL 2 SCREEN (REMOTE SNA) (T.S.O)        *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+D63278TS MODEENT LOGMODE=D63278TS,                                     X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'8587',                                        X
+               PSERVIC=X'020000000000000000000200'
+*****************************************************************
+*      3276 SNA WITH 3289 MODEL 2 PRINTER                       *
+*****************************************************************
+D6328902 MODEENT LOGMODE=D6328902,                                     X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'8787',                                        X
+               PSERVIC=X'030000000000185018507F00'
+*****************************************************************
+*      3274 NON-SNA  MODEL 2 SCREEN (LOCAL)                     *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*****************************************************************
+D4B32782 MODEENT LOGMODE=D4B32782,                                     X
+               FMPROF=X'02',                                           X
+               TSPROF=X'02',                                           X
+               PRIPROT=X'71',                                          X
+               SECPROT=X'40',                                          X
+               COMPROT=X'2000',                                        X
+               RUSIZES=X'0000',                                        X
+               PSERVIC=X'000000000000185000007E00'
+*****************************************************************
+*     S C S   P R I N T E R                                     *
+*****************************************************************
+SCS      MODEENT LOGMODE=SCS,                                          X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'87C6',                                        X
+               PSNDPAC=X'01',                                          X
+               SRCVPAC=X'01',                                          X
+               PSERVIC=X'01000000E100000000000000'
+*****************************************************************
+*        N C C F                                                *
+*****************************************************************
+DSILGMOD MODEENT LOGMODE=DSILGMOD,                                     X
+               FMPROF=X'02',                                           X
+               TSPROF=X'02',                                           X
+               PRIPROT=X'71',                                          X
+               SECPROT=X'40',                                          X
+               COMPROT=X'2000',                                        X
+               RUSIZES=X'0000',                                        X
+               PSERVIC=X'000000000000000000000200'
+*****************************************************************
+*        N C C F                                                *
+*****************************************************************
+DSIXDMN  MODEENT LOGMODE=DSIXDMN,                                      X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'20',                                          X
+               SECPROT=X'20',                                          X
+               COMPROT=X'4000',                                        X
+               RUSIZES=X'0000',                                        X
+               PSERVIC=X'000000000000000000000000'
+*****************************************************************
+*      3276 SNA WITH MODEL 2 SCREEN (MAGNETIC STRIPE READER)    *
+*      PRIMARY SCREEN   : MODEL 2                               *
+*      SECONDARY SCREEN : NON                                   *
+*      TEST TEST TEST TEST TEST TEST                            *
+*****************************************************************
+SCSLRDR  MODEENT LOGMODE=SCSLRDR,                                      X
+               FMPROF=X'03',                                           X
+               TSPROF=X'03',                                           X
+               PRIPROT=X'B1',                                          X
+               SECPROT=X'90',                                          X
+               COMPROT=X'3080',                                        X
+               RUSIZES=X'87C6',                                        X
+               PSNDPAC=X'01',                                          X
+               SRCVPAC=X'01',                                          X
+               PSERVIC=X'04000000E100000000000000'
+         MODEEND
+         END
+``
+
 ### LOGMODE
 
 Specifies the name of a logon mode table to be used to correlate each logon mode name with a set of session parameters for the logical unit. The name you code must be the name of a logon mode table created as described in Logon mode table. If you do not supply a logon mode table for the logical unit on the MODETAB operand, an IBM®-supplied default logon mode table (ISTINCLM) is used. If you specify a table, both the table you specify and the default table are used.
