@@ -113,3 +113,142 @@ Specifies whether this terminal supports a selector pen.
 ### MODETAB
 
 Specifies the name of a logon mode table to be used for the logical unit. The name you code must be the name of a logon mode table created as described in Logon mode table. If you do not supply a logon mode table for the logical unit on the MODETAB operand, an IBM®-supplied default logon mode table (ISTINCLM) is used. If you specify a table, both the table you specify and the default table are used.
+
+SYS1.VTAMLST(HJS3705)
+
+```
+***********************************************************************
+*                                                                     *
+*      THIS GENERATION IS FOR AN IBM 3705                             *
+*                                                                     *
+***********************************************************************
+         SPACE 2
+***********************************************************************
+*      PCCU SPECIFICATIONS - OS/VS (VTAM ONLY)                        *
+***********************************************************************
+NCPSTART PCCU  CUADDR=660,         3705 CONTROL UNIT ADDRESS           X
+               AUTODMP=NO,         PROMPT BEFORE DUMPING NCP           X
+               AUTOIPL=YES,        AUTOIPL AND RESTART                 X
+               DUMPDS=NCPDUMP,     AUTODUMP REQUESTED                  X
+               INITEST=YES         NCP INITIALIZATION TEST
+         EJECT
+***********************************************************************
+*      BUILD MACRO SPECIFICATIONS FOR OS                              *
+***********************************************************************
+NCPBUILD BUILD MAXSUBA=31,          MUST BE SAME AS IN VTAM STR DEF    X
+               LOADLIB=NCPLOAD,     LIBRARY FOR NCP LOAD MODULE        X
+               OBJLIB=NCPOBJ1,      LIBRARY FOR ASSEMBLER OUTPUTS      X
+               LESIZE=320,          REGION SIZE FOR LINK-EDIT          X
+               TYPSYS=OS,           OS USED FOR STAGE 2                X
+               QUALIFY=SYS1,        1ST LEVEL QUALIFIER                X
+               UNIT=SYSDA,          DATA SET FOR ASSEMBLY              X
+               MEMSIZE=64,          3705 STORAGE SIZE IS 64K BYTES     X
+               TYPGEN=NCP,          NCP ONLY                           X
+               ABEND=YES,           ABEND FACILITY INCLUDED            X
+               ANS=YES,             AUTOMATIC NETWORK SHUTDOWN         X
+               ASMXREF=NO,          NO ASSEMBLER CROSS-REFERENCE       X
+               BFRS=64,             NCP BUFFER SIZE                    X
+               CHANTYP=TYPE2,       PRIMARY CHANNEL ADAPTER            X
+               ERASE=NO,            DO NOT ERASE BUFFERS (DEFAULT)     X
+               ENABLTO=2.2,         LEASED LINE ONLY (DEFAULT)         X
+               JOBCARD=MULTI,       JOBCARDS PROVIDED BY NCP GEN       X
+               MODEL=3705-2,        .                                  X
+               NEWNAME=HJS3705,     NAME OF THIS NCP LOAD MODULE       X
+               OLT=YES,             ONLINE TEST AVAILABLE(DEFAULT)     X
+               SLODOWN=12,          SLOWDOWN WHEN 12% OF BUFFERS AVAIL X
+               SUBAREA=16,          SUBAREA ADDRESS = 3                X
+               TRACE=(YES,10)       10 ADDRESS-TRACE ENTRIES
+         SPACE 2
+***********************************************************************
+*      SYSCNTRL OPTIONS FOR VTAM OR TCAM                              *
+*      NOTE THAT OPERATOR CONTROLS ARE NOT INCLUDED.                  *
+***********************************************************************
+NCPSYSC  SYSCNTRL OPTIONS=(MODE,                                       X
+               RCNTRL,RCOND,RECMD,RIMM,ENDCALL,                        X
+               BHSASSC)
+         SPACE 2
+***********************************************************************
+*      HOST MACRO SPECIFICATIONS OS VTAM                              *
+*      UNITSZ TIMES MAXBFRU MINUS BFRPAD EQUALS MAX MESSAGE SIZE      *
+*      FOR INBOUND MESSAGES                                           *
+***********************************************************************
+NCPHOST  HOST  INBFRS=5,           INITIAL 3705 ALLOCATION             X
+               MAXBFRU=4,          VTAM BUFFER UNIT ALLOCATION         X
+               UNITSZ=4016,        *                                   X
+               BFRPAD=28,          VTAM(OS=28, DOS=15, ACF=0), EXTM=2  X
+               DELAY=.2,           .2 SECOND ATTENTION DELAY           X
+               STATMOD=YES,        YES VTAM, NO FOR EXTM               X
+               TIMEOUT=(120.0)     AUTO SHUTDOWN IF NO RESP IN 120SEC
+        SPACE  2
+***********************************************************************
+*      CSB MACRO SPECIFICATIONS                                       *
+***********************************************************************
+NCPCSB  CSB    SPEED=(1200),       BUS MACH CLOCK                      X
+               MOD=0,              SCANNER ADDRESS 020 TO 05F          X
+               TYPE=TYPE2          TYPE 2 COMM SCANNER
+        EJECT
+***********************************************************************
+*      SPECIFICATIONS FOR SDLC LEASED LINES                           *
+*      GROUP MACRO SPECIFICATIONS                                     *
+***********************************************************************
+SDLCGPL GROUP  LNCTL=SDLC,         SYNCHRONOUS DATA LINK               X
+               DIAL=NO,            REQUIRED FOR LEASED LINE            X
+               REPLYTO=1.0,        USE DEFAULT                         X
+               TYPE=NCP            NCP ONLY
+        SPACE  2
+***********************************************************************
+*      LINE MACRO SPECIFICATION - FULL-DUPLEX, LEASED                 *
+*      MAY BE USED FOR 3790, 3600, OR 3650                            *
+*                                                                     *
+*      NOTE: LINE SPEED MAY BE RAISED TO 2400 FOR                     *
+*      ALL PHYSICAL UNITS AND TO 4800 FOR 3600 AND 3650               *
+*      WITHOUT DOING A NEW GEN OF NCP.                                *
+*      RETRIES VALUE FOR LINE SHOULD BE GREATER THAN 30               *
+*      SECONDS AND LESS THAN ONE MINUTE FOR 3650.                     *
+*                                                                     *
+***********************************************************************
+SDLC01   LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
+               DUPLEX=HALF,        MODEM IS STRAPPED FOR HALF DUPLEX   X
+               SPEED=9600,         SPEED MAY BE HIGHER (SEE NOTES)     X
+               NRZI=NO,            SPECIFY YES ONLY IF REQUIRED        X
+               NEWSYNC=NO,         CHECK MODEM REQUIREMENTS            X
+               CLOCKNG=EXT,        MODEM PROVIDES CLOCKING             X
+               POLLED=YES,                                             X
+               RETRIES=(5,10,4),   5 RETRIES PER RECOVERY SEQUENCE     X
+               ISTATUS=ACTIVE
+         SPACE 2
+***********************************************************************
+*      SERVICE ORDER FOR SDLC LINK                                    *
+***********************************************************************
+         SERVICE ORDER=(SDLC3274)
+         EJECT
+***********************************************************************
+*      PHYSICAL UNIT SPECIFICATIONS                                   *
+***********************************************************************
+SDLC3274 PU    ADDR=C1,           POLL ADDRESS                         X
+               PUTYPE=2,                                               X
+               ISTATUS=ACTIVE,                                         X
+               MODETAB=BSPLMT02,                                       X
+               SSCPFM=USS3270,                                         X
+               MAXOUT=7,          MAX PATH INFO UNITS BEFORE RESPONSE  X
+               MAXDATA=265,       MAXIMUM AMOUNT OF DATA               X
+               PASSLIM=7,         .                                    X
+               PACING=0,          FOR DISPLAYS AND DSC PRINTERS        X
+               VPACING=0,         FOR DISPLAYS AND DSC PRINTERS        X
+               DISCNT=(NO),       .                                    X
+               RETRIES=(,1,4)     4 RETRIES, 1 SECOND BETWEEN
+         SPACE 2
+***********************************************************************
+*      LOGICAL UNIT SPECIFICATIONS                                    *
+***********************************************************************
+SDLCPA01 LU LOCADDR=2,USSTAB=BSPUDT01,ISTATUS=INACTIVE
+SDLCPA02 LU LOCADDR=3,USSTAB=BSPUDT01,ISTATUS=INACTIVE
+SDLCPA03 LU LOCADDR=4,USSTAB=BSPUDT01,ISTATUS=INACTIVE
+SDLCPA04 LU LOCADDR=5,USSTAB=BSPUDT01,ISTATUS=INACTIVE
+         EJECT
+***********************************************************************
+*      GENEND DELIMITER                                               *
+***********************************************************************
+         GENEND
+         END
+```
