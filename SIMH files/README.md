@@ -1344,4 +1344,7 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
          GENEND
          END
 ``` 
+```
+CMD V NET,ACT,ID=T3278S31,LOGON=SNASOL,LOGMODE=MHP3278E
+```
 
