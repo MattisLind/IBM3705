@@ -1348,3 +1348,6 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
 CMD V NET,ACT,ID=T3278S31,LOGON=SNASOL,LOGMODE=MHP3278E
 ```
 
+### Links
+
+* [VTAM System Programmers Guide](http://www.bitsavers.org/pdf/ibm/sna/acf/SC38-0258-1_ACF_VTAM_System_Programmers_Guide_197805.pdf)
