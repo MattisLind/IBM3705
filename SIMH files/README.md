@@ -1321,20 +1321,19 @@ BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
 ***********************************************************************
 *      PHYSICAL UNIT SPECIFICATIONS                                   *
 ***********************************************************************
-BSC3274 CLUSTER  PUTYPE=3274,                                          X
+BSC3274 CLUSTER  CUTYPE=3271,                                          X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
-               CRITSIT=YES,,                                           X
                GPOLL=40407F7F,                                         X
-               DLOGMOD=S3270,                                          X
-               USSTAB=VUSS3270,                                        X
-               MODETAB=NOSPTAB
+               SSCPFM=USS3270,                                         X
+               MODETAB=BSPLMT02
          SPACE 2
 ***********************************************************************
 *      LOGICAL UNIT SPECIFICATIONS                                    *
 ***********************************************************************
 BSCTERM1 TERMINAL TERM=3277,                                           X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
-               ISTATUS=ACTIVE,                                         X
+               ISTATUS=INACTIVE,                                       X
+               USSTAB=BSPUDT01,                                        X
                ADDR=60604040,                                          X
                POLL=40404040
          EJECT
@@ -1343,6 +1342,7 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
 ***********************************************************************
          GENEND
          END
+
 ``` 
 ```
 CMD V NET,ACT,ID=T3278S31,LOGON=SNASOL,LOGMODE=MHP3278E
