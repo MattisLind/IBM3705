@@ -1273,14 +1273,11 @@ NCPCSB  CSB    SPEED=(1200),       BUS MACH CLOCK                      X
 ***********************************************************************
 BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
                DIAL=NO,            REQUIRED FOR LEASED LINE            X
-               REPLYTO=1.0,        USE DEFAULT                         X
                TYPE=NCP,           NCP ONLY                            X
                TRANSFR=5,          LIMIT NUMBER OF RECEIVE BUFFERS     X
                CUTOFF=1,           LIMIT NUMBER OF SUBBLOCKS           X
                CRETRY=7,           TIME OUT WILL TAKE 63 SECONDS       X
                XMITLIM=1,          TRANSMISSION LIMIT                  X
-               WACKCNT=15,         WACK COUNT OF 15                    X
-               SYNDLAY=1,          SYNC INTERVAL RATE                  X
                REPLYTO=3           REPLY TIMEOUT
         SPACE  2
 ***********************************************************************
@@ -1297,7 +1294,6 @@ BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
 BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
                DUPLEX=HALF,        MODEM IS STRAPPED FOR HALF DUPLEX   X
                SPEED=9600,         SPEED MAY BE HIGHER (SEE NOTES)     X
-               NRZI=NO,            SPECIFY YES ONLY IF REQUIRED        X
                NEWSYNC=NO,         CHECK MODEM REQUIREMENTS            X
                CLOCKNG=EXT,        MODEM PROVIDES CLOCKING             X
                NEGPOLP=.1,         NEGATIVE POLL PAUSE                 X
@@ -1333,7 +1329,6 @@ BSC3274 CLUSTER  CUTYPE=3271,                                          X
 BSCTERM1 TERMINAL TERM=3277,                                           X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
                ISTATUS=INACTIVE,                                       X
-               USSTAB=BSPUDT01,                                        X
                ADDR=60604040,                                          X
                POLL=40404040
          EJECT
@@ -1342,7 +1337,6 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
 ***********************************************************************
          GENEND
          END
-
 ``` 
 ```
 CMD V NET,ACT,ID=T3278S31,LOGON=SNASOL,LOGMODE=MHP3278E
