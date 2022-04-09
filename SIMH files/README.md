@@ -1268,7 +1268,7 @@ NCPCSB  CSB    SPEED=(1200),       BUS MACH CLOCK                      X
                TYPE=TYPE2          TYPE 2 COMM SCANNER
         EJECT
 ***********************************************************************
-*      SPECIFICATIONS FOR SDLC LEASED LINES                           *
+*      SPECIFICATIONS FOR BSC LEASED LINES                            *
 *      GROUP MACRO SPECIFICATIONS                                     *
 ***********************************************************************
 BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
@@ -1314,12 +1314,12 @@ BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
 *
          SPACE 2
 ***********************************************************************
-*      SERVICE ORDER FOR SDLC LINK                                    *
+*      SERVICE ORDER FOR BSC LINK                                     *
 ***********************************************************************
          SERVICE ORDER=(BSC3274,BSCTERM1)
          EJECT
 ***********************************************************************
-*      PHYSICAL UNIT SPECIFICATIONS                                   *
+*      CLUSTER SPECIFICATIONS                                         *
 ***********************************************************************
 BSC3274 CLUSTER  CUTYPE=3271,                                          X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
@@ -1328,7 +1328,7 @@ BSC3274 CLUSTER  CUTYPE=3271,                                          X
                MODETAB=BSPLMT02
          SPACE 2
 ***********************************************************************
-*      LOGICAL UNIT SPECIFICATIONS                                    *
+*      TERMINAL SPECIFICATIONS                                        *
 ***********************************************************************
 BSCTERM1 TERMINAL TERM=3277,                                           X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
