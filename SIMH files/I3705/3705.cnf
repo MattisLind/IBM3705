@@ -2,5 +2,5 @@ set cpu 64k
 ;
 ; br 2CD8
 ; load /mnt/s3/IBM_3705_stuff/NCP_gen_load/IFL3705E.obj
-; debug 3
+;d debug ff
 b cpu 

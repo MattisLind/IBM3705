@@ -221,7 +221,7 @@ int32 Grp;                                              /* Active Register Group
 int32 PC;                                               /* Program Counter */
 int32 LAR;                                              /* Lagging Address Register */
 int32 saved_PC;                                         /* Previous (saved) PC */
-int32 debug_reg = 0x00;                                 /* Bit flags for debug/trace */
+int32 debug_reg = 0x40;                                 /* Bit flags for debug/trace */
 int32 debug_flag = OFF;                                 /* 1 when trace.log open */
 FILE  *trace;
 int   tbar;                                             /* ICW table pointer */
@@ -502,24 +502,24 @@ while (reason == 0) {                          /* Loop until halted */
 //  IBM 3705 CCU trace print statements
 //********************************************************
    if (wait_state != ON) {
-      if (debug_reg & 0x01) {  /* Trace instruction + mnem. */
+     if (debug_reg & 0x01) {  /* Trace instruction + mnem. */
          fprintf(trace, "\n[%06d] exec IAR=%05X - %04X        ", cc++,
             saved_PC, opcode );
          fprint_sym(trace, PC, (uint32 *) val, &cpu_unit, SWMASK('M') );
          fprintf(trace, "\n");
-      }
+	 }
       if (debug_reg & 0x08) {  /* Trace external scanner registers */
          fprintf(trace, "         CS2: %05X %05X %05X %05X  %05X %05X %05X %05X (X'40-47') ",
             Eregs_Inp[CMBARIN], NOTUSED, NOTUSED, Eregs_Inp[CMERREG],
             Eregs_Inp[CMICWB0F], Eregs_Inp[CMICWLPS], Eregs_Inp[CMICWDPS], Eregs_Inp[CMICWB32]);
          fprintf(trace, "\n");
-      }
-      if (debug_reg & 0x04) {  /* Trace external chan adaptor registers */
+	 }
+            if (debug_reg & 0x04) {  /* Trace external chan adaptor registers */
          fprintf(trace, "         CA1: %05X %05X %05X %05X  %05X %05X %05X %05X (X'60-67') ",
             Eregs_Inp[CAISC], Eregs_Inp[CAISD], Eregs_Inp[CASSC], Eregs_Inp[CASSA],
             Eregs_Inp[CASD12], Eregs_Inp[CASD34], Eregs_Inp[CARNSTAT], Eregs_Inp[CAECR]);
          fprintf(trace, "\n");
-      }
+	 }
       if (debug_reg & 0x10) {  /* Trace CCU external registers */
          fprintf(trace, "         CCU: %05X %05X %05X %05X  %05X %05X %05X %05X (X'70-77') ",
             Eregs_Inp[SYSSTSZ], Eregs_Inp[SYSADRDT], Eregs_Inp[SYSFNINS], Eregs_Inp[SYSINKEY],
@@ -529,7 +529,7 @@ while (reason == 0) {                          /* Loop until halted */
             NOTUSED, Eregs_Inp[SYSUTILI], Eregs_Inp[SYSCUCI],  Eregs_Inp[SYSBSCRC],
             NOTUSED, Eregs_Inp[SYSMCHK],  Eregs_Inp[SYSCCUG1], Eregs_Inp[SYSCCUG2]);
          fprintf(trace, "\n");
-      }
+	 }
    }
 
 //********************************************************
@@ -556,7 +556,7 @@ while (reason == 0) {                          /* Loop until halted */
       int_lvl_req[4] = ON;                     // Set L4 interrupt request
    else int_lvl_req[4] = OFF;
 
-   if (debug_reg & 0x02) {                     /* Trace interrupt flags */
+      if (debug_reg & 0x02) {                     /* Trace interrupt flags */
       if (wait_state != ON) {
          fprintf(trace, "\n>>  REQ[1-5] = %d %d %d %d %d   ENT[1-5] = %d %d %d %d %d   MSK[1-5] = %d %d %d %d %d\n" ,
                int_lvl_req[1],  int_lvl_req[2],  int_lvl_req[3],  int_lvl_req[4],  int_lvl_req[5],

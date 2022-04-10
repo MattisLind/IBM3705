@@ -386,6 +386,7 @@ void *CS2_thread(void *arg);
 void *PNL_thread(void *arg);
 void *TEL_thread(void *arg);
 
+int start3274Emu ();
 
 /* Global data */
 
@@ -720,22 +721,8 @@ if (rc != 0) {                                          /* Any problems ? */
            strerror(errno));
    exit(1);
 }
-                                                        /* Start the panel adaptor execution thread */
-rc = pthread_create(&thread, NULL, PNL_thread, NULL);
-if (rc != 0) {                                          /* Any problems ? */
-   fprintf (stderr,
-           "\r\nCan't create execution thread: %s",
-           strerror(errno));
-   exit(1);
-}
 
-rc = pthread_create(&thread, NULL, TEL_thread, NULL);
-if (rc != 0) {                                          /* Any problems ? */
-   fprintf (stderr,
-           "\r\nCan't create execution thread: %s",
-           strerror(errno));
-   exit(1);
-}
+start3274Emu ();
 
 //*** Multi thread support coding ends here  HJS
 
