@@ -283,11 +283,11 @@ void *CS2_thread(void *arg) {
 	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
 	     break;
 	   if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
+	     transmitChar = icw_pdf[t];
 	     if (debug_reg & 0x40) { // Trace PCF state ?
 	       fprintf(stderr, "State 8 ch=%02X \n", transmitChar);
 	     }
-	     write(socketpairFds[1], &transmitChar, 1);
-	     icw_pdf[t] = transmitChar;
+	     // write(socketpairFds[1], &transmitChar, 1);
 	     // Next byte please...
 	     icw_pdf_reg = EMPTY; // Ask NCP for next byte
 	     icw_scf[t] |= 0x40;  // Set norm char serv flag
@@ -301,11 +301,12 @@ void *CS2_thread(void *arg) {
 	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
 	     break;
 	   if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
+	     transmitChar = icw_pdf[t];
 	     if (debug_reg & 0x40) { // Trace PCF state ?
 	       fprintf(stderr, "State 9 ch=%02X \n", transmitChar);
 	     }
 	     write(socketpairFds[1], &transmitChar, 1);
-	     icw_pdf[t] = transmitChar;
+
 	     // Next byte please...
 	     icw_pdf_reg = EMPTY; // Ask NCP for next byte
 	     icw_scf[t] |= 0x40;  // Set norm char serv flag

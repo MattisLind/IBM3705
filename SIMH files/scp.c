@@ -740,7 +740,7 @@ if (rc != 0) {                                          /* Any problems ? */
 
  
 
-//start3274Emu ();
+start3274Emu ();
 
 //*** Multi thread support coding ends here  HJS
 
