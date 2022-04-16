@@ -722,7 +722,25 @@ if (rc != 0) {                                          /* Any problems ? */
    exit(1);
 }
 
-start3274Emu ();
+rc = pthread_create(&thread, NULL, PNL_thread, NULL);
+if (rc != 0) {                                          /* Any problems ? */
+   fprintf (stderr,
+           "\r\nCan't create execution thread: %s",
+           strerror(errno));
+   exit(1);
+}
+
+rc = pthread_create(&thread, NULL, TEL_thread, NULL);
+if (rc != 0) {                                          /* Any problems ? */
+   fprintf (stderr,
+           "\r\nCan't create execution thread: %s",
+           strerror(errno));
+   exit(1);
+}
+
+ 
+
+//start3274Emu ();
 
 //*** Multi thread support coding ends here  HJS
 
