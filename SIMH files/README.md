@@ -1305,8 +1305,9 @@ BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
                POLIMIT=(1,QUEUE),                                      X
                PAUSE=1,            DELAY BETWEEN SERVICE CYCLES        X
                SERVPRI=OLD,        PRIORITY TO OLD SESSIONS            X
-               SESSION=1           SPECIFY 1 FOR EACH CLUSTER
-*              PU=YES,             ACF/VTAM ONLY
+               SESSION=1,          SPECIFY 1 FOR EACH CLUSTER          X
+               PU=YES,             ACF/VTAM ONLY                       X
+               SSCPFM=USS3270
 *
          SPACE 2
 ***********************************************************************
@@ -1320,7 +1321,6 @@ BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
 BSC3274 CLUSTER  CUTYPE=3271,                                          X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
                GPOLL=40407F7F,                                         X
-               SSCPFM=USS3270,                                         X
                MODETAB=BSPLMT02
          SPACE 2
 ***********************************************************************
@@ -1337,6 +1337,7 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
 ***********************************************************************
          GENEND
          END
+
 ``` 
 ```
 CMD V NET,ACT,ID=T3278S31,LOGON=SNASOL,LOGMODE=MHP3278E
