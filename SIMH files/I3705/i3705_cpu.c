@@ -411,6 +411,15 @@ DEVICE cpu_dev = {
     NULL, NULL
 };
 
+char * getTimeStr() {
+  static char tmp [256];
+  struct timeval tv;
+  gettimeofday(&tv,NULL);
+  sprintf(tmp, "%ld.%06ld", tv.tv_sec, tv.tv_usec);
+  return tmp;
+}
+
+
 //********************************************************
 // Instruction simulator
 //********************************************************
@@ -1944,13 +1953,12 @@ while (reason == 0) {                          /* Loop until halted */
             }
             if ((Efld >= 0x40) && Efld <= 0x47) {   // Addressing CS2 ICW regs ?
                // ICW Input register ===> Eregs_Out 44, 45, 46, 47
+	      fprintf (stderr, "%s IN: Efld=%02X\n", getTimeStr(), Efld);
                Get_ICW(abar);                       // update ICW inpur regs
+
+	       
             }
 
-            if (Efld == 0x44) {                     // NCP has read received byte
-               if (icw_pcf[0] == 0x07)              // TEMP PDF is now empty for next rx
-                  icw_pdf_reg = EMPTY;
-            }
             if (Efld == 0x50) {                     // Get INCWAR ?
                Eregs_Inp[0x50] = Eregs_Out[0x50];   // Load INCWAR as used by CA
             }
@@ -2036,22 +2044,55 @@ while (reason == 0) {                          /* Loop until halted */
                   abar = Eregs_Out[0x40];
                   tbar = (abar - 0x0840) >> 1; // Get ICW table ptr from abar
                   //debug_reg = 0x63;                 // Very very very temp HJS
+		  fprintf (stderr, "%s OUT: abar=%02X tbar=%02X\n", getTimeStr(), abar, tbar);
                }
                if (Efld == 0x44) {             // ICW SCF & PDF
-                  icw_scf[tbar] = (Eregs_Out[0x44] >> 8) & 0x4E;   // Only Serv Req, DCD & Pgm Flag
+		  fprintf (stderr, "%s OUT: tbar=%d icw_pdf=%02X icw_scf=%02X icw_pcf=%d lvl=%d\n", getTimeStr(), tbar, 0xff & icw_pdf[tbar], 0xff & icw_scf[tbar], 0xff & icw_pcf[0], lvl);
+		  if (Eregs_Out[0x44] & 0x8000) {
+		    fprintf (stderr, "%s OUT: Abort RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0x7f;
+		  }
+		  if (Eregs_Out[0x44] & 0x4000) {
+		    fprintf (stderr, "%s OUT: Service Interlock RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0xbf;
+		  }
+		  if (Eregs_Out[0x44] & 0x2000) {
+		    fprintf (stderr, "%s OUT: Character overrrun/Underrun flag RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0xdf;
+		  }
+		  if (Eregs_Out[0x44] & 0x1000) {
+		    fprintf (stderr, "%s OUT: Modem Check RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0xef;
+		  }
+		  if (Eregs_Out[0x44] & 0x0800) {
+		    fprintf (stderr, "%s OUT: Unknown flag RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0xf7;
+		  }
+		  if (Eregs_Out[0x44] & 0x0400) {
+		    fprintf (stderr, "%s OUT: Zero-insert remembrance flag RESET\n", getTimeStr());
+		    icw_scf[tbar] &= 0xfb;
+		  }
+
+                  icw_scf[tbar] |= (Eregs_Out[0x44] >> 8) & 0x03;   // Only Serv Req, DCD & Pgm Flag
                   icw_pdf[tbar] =  Eregs_Out[0x44] & 0x00FF;
-                  if (icw_pcf[0] != 0x07)               // TEMP
-                     icw_pdf_reg = FILLED;     // PDF is filled for tx
+		  fprintf (stderr, "%s OUT: icw_scf=%02X icw_pdf=%02X\n", getTimeStr(), 0xff & icw_scf[tbar], 0xff &icw_pdf[tbar]);
                }
                if (Efld == 0x45) {             // ICW LCD & PCF
                   icw_lcd[tbar] = (Eregs_Out[0x45] >> 4) & 0x0F;
                   icw_pcf_new =  Eregs_Out[0x45] & 0x0F;
                   icw_pcf_mod = 0x01;          // indicate pcf updated
+		  fprintf (stderr, "%s OUT: icw_lcd=%01X icw_pcf=%01X\n", getTimeStr(), icw_lcd[tbar], icw_pcf_new);
                }
                                                // ICW SDF
-               if (Efld == 0x46) icw_sdf[tbar]    = (Eregs_Out[0x46] >> 2) & 0xFF;
+               if (Efld == 0x46) {
+		 icw_sdf[tbar]    = (Eregs_Out[0x46] >> 2) & 0xFF;
+		 fprintf (stderr, "%s OUT: icw_sdf=%02X\n", getTimeStr(), icw_sdf[tbar]);
+	       }
                                                // ICW 34 - 45
-               if (Efld == 0x47) icw_Rflags[tbar] = (Eregs_Out[0x47] << 4) & 0x0070;
+               if (Efld == 0x47) {
+		 icw_Rflags[tbar] = (Eregs_Out[0x47] << 4) & 0x0070;
+		 fprintf (stderr, "%s OUT: icw_Rflags=%02X\n", getTimeStr(), icw_Rflags[tbar]);
+	       }
                // Release ICW update lock.
                pthread_mutex_unlock(&icw_lock);
             }

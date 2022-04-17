@@ -17,6 +17,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include "MessageFSM.h"
+#include "SyncFSM.h"
 #include <pthread.h>              
 #include <errno.h>
 #include <fcntl.h>
@@ -90,9 +91,18 @@ int sock = 0;
 
 void txData (unsigned char);
 void receivedMessage(unsigned char, unsigned char *);
-void enterHuntState();
+void enterHuntStateCallback();
 
-class MessageFSM messageFSM(txData, receivedMessage, enterHuntState, false);
+class MessageFSM messageFSM(txData, receivedMessage, enterHuntStateCallback, false);
+
+void receiveCallback(unsigned char ch) {     
+  messageFSM.rxData(ch);   
+}
+
+class SyncFSM syncFSM(receiveCallback);
+void enterHuntStateCallback () {
+     syncFSM.enterHuntState();     
+}
 
 void txData (unsigned char data) {
   int ret = write( server , &data, 1); 
@@ -143,7 +153,7 @@ void receivedMessage (unsigned char msgType, unsigned char * msg) {
     ack=1;
     if (((MSG *) msg)->enqData.CU == 0x40) {
     switch (((MSG *) msg)->enqData.DV) {
-      case 0x40:
+      default:
         if (dataToSend==1) {
 	  messageFSM.sendTextMessage(bufferLength, sendBuffer, false);
 	  dataToSend=0;
@@ -152,9 +162,9 @@ void receivedMessage (unsigned char msgType, unsigned char * msg) {
 	  messageFSM.sendEOT();
         }
         break;
-      default:
+	/*default:
         messageFSM.sendEOT();
-        break;
+        break;*/
       }
     } else {
       messageFSM.sendACK0();
@@ -214,9 +224,6 @@ void receivedMessage (unsigned char msgType, unsigned char * msg) {
   default:
     break;
   }
-}
-
-void enterHuntState () {
 }
 
 
@@ -285,7 +292,7 @@ void endOfSubParam () {
   subParamsBuf[subParamPtr++] = 0;
 }
 
-unsigned int  processBSCDataFromHercules(int server, int client) {
+unsigned int  processBSCDataFromHercules(int client) {
   int i;
   unsigned char buf[BUF_SIZE];
   unsigned int disconnected = 0;
@@ -296,7 +303,7 @@ unsigned int  processBSCDataFromHercules(int server, int client) {
   } else {
     for (i=0; i<bytes_read; i++) {
       printLog("read %02x : %c from BSC line\n", buf[i] & 0xff, buf[i] & 0xff);
-      messageFSM.rxData(buf[i]);
+      syncFSM.receivedData(buf[i]);
       while (messageFSM.isTxIdle() != true) {
 	messageFSM.txPoll();
       }
@@ -477,12 +484,12 @@ unsigned int sendTelnetWont(int socket, unsigned char option) {
 }
 
 
-void handle(int client, int server)
+void handle(int client, int s)
 {
   unsigned int disconnected = 0;
   fd_set set;
   unsigned int max_sock;
- 
+  server = s;
   if (client > server) {
     max_sock = client;
   }
@@ -513,7 +520,7 @@ void handle(int client, int server)
       disconnected = processDataFromTerminal(client);
     }
     if (FD_ISSET(server, &set)) {
-      disconnected = processBSCDataFromHercules(server, client);
+      disconnected = processBSCDataFromHercules(client);
     }
     messageFSM.txPoll();
   }
@@ -610,7 +617,7 @@ extern "C" {
 int start3274Emu () {
   int rc;
   int flags;
-  socketpair(PF_LOCAL, SOCK_STREAM, 0, socketpairFds);
+  socketpair(AF_LOCAL, SOCK_STREAM, 0, socketpairFds);
   fcntl(socketpairFds[0], F_GETFL);
   fcntl(socketpairFds[1], F_GETFL);
   fcntl(socketpairFds[0], F_SETFL, flags | O_NONBLOCK);

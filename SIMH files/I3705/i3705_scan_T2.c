@@ -127,6 +127,8 @@ extern FILE *trace;
 extern int32 lvl;
 extern int32 cc;
 
+char * getTimeStr();
+
 extern int Ireg_bit(int reg, int bit_mask);
 extern void wait();
 #define I3705SCANNERTHREAD 1
@@ -181,7 +183,7 @@ void *CS2_thread(void *arg) {
   
          pthread_mutex_lock(&icw_lock);
          if (icw_pcf[t] != icw_pcf_new) {  // pcf changed by NCP ?
-	   fprintf(stderr, "NCP changed PCF to %1X\n", icw_pcf[t], icw_pcf_new);
+	   fprintf(stderr, "Current state=%01X NCP changed PCF to %1X\n", icw_pcf[t], icw_pcf_new);
 	   if (icw_pcf_new == 0x0)        // NCP changed PCF = 0 ?
 	     icw_lne_stat[t] = RESET;    // Line state = RESET
 	   icw_pcf_prev[t] = icw_pcf[t];  // Save current pcf and
@@ -232,7 +234,7 @@ void *CS2_thread(void *arg) {
 	   if (icw_lne_stat[t] == TX)      // Line is silent. Wait for NCP action.
 	     break;
 	   ret = read (socketpairFds[1], &receivedChar, 1);
-	   fprintf (stderr, "Read ret=%d, ch=%02X errno=%s\n", ret, receivedChar, strerror(errno));
+	   fprintf (stderr, "Read ret=%d, ch=%02X\n", ret, receivedChar);
 	   if (ret ==- 1) {
 	     if (errno == EAGAIN) {
 	       break;
@@ -243,7 +245,12 @@ void *CS2_thread(void *arg) {
 	   }
 	   if (receivedChar == 0x32)  { // Found a SYN flag
 	     fprintf(stderr, "Received SYN! - goto state 7\n");
+	     icw_pdf[t] = receivedChar; // Get received byte
 	     icw_pcf_new  = 0x7;          // Goto PCF = 7
+	     //icw_pdf_reg = EMPTY; 
+	     //icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
+	     //icw_scf[t] |= 0x40;     // Set norm char serv flag
+	     //CS2_req_L2_int = ON;    // Issue a L2 interrupt
 	   }
 	   // Line state is receiving, wait for BFlag...
 	   break;
@@ -255,13 +262,13 @@ void *CS2_thread(void *arg) {
 	 case 0x7:                  // Receive info-allow data interrupt
 	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
 	     break;                              // Loop till inactive...
-	   
-	   if (icw_pdf_reg == EMPTY) {   // NCP has read pdf ?
+	   //fprintf(stderr, "L2 not active any longer... icw_pdf_reg=%d \n", icw_pdf_reg);
+	   if ((icw_scf[t]&0x40) == 0) {   // NCP has read pdf ?
 	     ret = read (socketpairFds[1], &receivedChar, 1);
-	     fprintf (stderr, "Read ret=%d, ch=%02X errno=%s\n", ret, receivedChar, strerror(errno));
+	     fprintf (stderr, "Read ret=%d, ch=%02X\n", ret, receivedChar);
 	     if (ret ==- 1) {
 	       if (errno == EAGAIN) {
-		 break;
+		 receivedChar = 0xff;
 	       } else {
 		 fprintf(stderr, "Read error %s\n", strerror(errno));
 		 exit(0);
@@ -272,7 +279,7 @@ void *CS2_thread(void *arg) {
 	     if (debug_reg & 0x40) {    // Trace PCF state ?
 	       fprintf(stderr, "State 7 ch = %02X\n", icw_pdf[t]);
 	     }
-	     icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
+	     //icw_pdf_reg = FILLED;   // Signal NCP to read pdf.
 	     icw_scf[t] |= 0x40;     // Set norm char serv flag
 	     icw_pcf_new = 0x7;      // Stay in PCF = 7...
 	     CS2_req_L2_int = ON;    // Issue a L2 interrupt
@@ -280,14 +287,17 @@ void *CS2_thread(void *arg) {
 	   break;
 
 	 case 0x8:                  // Transmit initial-turn RTS on
-	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
-	     break;
-	   if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
+	   //if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
+	   //  break;
+	   fprintf (stderr, "%s SCAN: icw_pdf=%02X icw_scf=%02X icw_scf&0x40=%02X\n", getTimeStr(), 0xff & icw_pdf[t], 0xff & icw_scf[t], icw_scf[t]&0x40);
+	     fprintf (stderr, "%s SCAN: 1. condition=%01X icw_pdf=%02X icw_scf=%02X\n", getTimeStr(), (icw_scf[t]&0x40) == 0, 0xff & icw_pdf[t], 0xff & icw_scf[t]);
+	   if ((icw_scf[t]&0x40) == 0) {   // New char avail to xmit ?
 	     transmitChar = icw_pdf[t];
+	     fprintf (stderr, "%s SCAN: 2. condition=%01X icw_pdf=%02X icw_scf=%02X\n", getTimeStr(), (icw_scf[t]&0x40) == 0, 0xff & icw_pdf[t], 0xff & icw_scf[t]);
 	     if (debug_reg & 0x40) { // Trace PCF state ?
-	       fprintf(stderr, "State 8 ch=%02X \n", transmitChar);
+	       fprintf(stderr, "%s SCAN: State 8 ch=%02X \n", getTimeStr(),transmitChar);
 	     }
-	     // write(socketpairFds[1], &transmitChar, 1);
+	     write(socketpairFds[1], &transmitChar, 1);
 	     // Next byte please...
 	     icw_pdf_reg = EMPTY; // Ask NCP for next byte
 	     icw_scf[t] |= 0x40;  // Set norm char serv flag
@@ -298,9 +308,10 @@ void *CS2_thread(void *arg) {
 	   
 	 case 0x9:                  // Transmit normal
 	 case 0xA:                  // Transmit normal with new sync	   
-	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
-	     break;
-	   if (icw_pdf_reg == FILLED) {   // New char avail to xmit ?
+	   //	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
+	   //break;
+	   fprintf (stderr, "%s SCAN: icw_pdf=%02X icw_scf=%02X lvl=%d\n", getTimeStr(), 0xff & icw_pdf[t], 0xff & icw_scf[t]);
+	   if ((icw_scf[t]&0x40) == 0) {   // New char avail to xmit ?
 	     transmitChar = icw_pdf[t];
 	     if (debug_reg & 0x40) { // Trace PCF state ?
 	       fprintf(stderr, "State 9 ch=%02X \n", transmitChar);
@@ -322,7 +333,7 @@ void *CS2_thread(void *arg) {
 	 case 0xC:                  // Transmit turnaround-turn RTS off
 	   if (icw_pcf_prev[t] != icw_pcf[t]) {  // First entry ?
 	     fprintf(stderr, "We got into state C.\n");
-	     
+	     //icw_pdf_reg = EMPTY;	     
 	     icw_lne_stat[t] = RX;   // Line turnaround to receiving...
 	     icw_scf[t] |= 0x40;     // Set norm char serv flag
 	     icw_pcf_new = 0x5;      // Goto PCF = 5...
@@ -397,12 +408,16 @@ void Put_ICW(int abar) {               // See 3705 CE manauls for details.
 
 /* Copy ICW[ABAR] to input regs */
 void Get_ICW(int abar) {               // See 3705 CE manauls for details.
-   int tbar = (abar - 0x0840) >> 1;    // Get ICW table ptr from abar
+  int tbar = (abar - 0x0840) >> 1;    // Get ICW table ptr from abar
+  fprintf (stderr, "%s IN: icw_pdf=%02X icw_scf=%02X \n", getTimeStr(), 0xff & icw_pdf[tbar], 0xff & icw_scf[tbar]);
+  fprintf (stderr, "%s IN: icw_lcd=%01X icw_pcf=%01X icw_sdf=%02X\n", getTimeStr(), 0xff & icw_lcd[tbar], 0xff & icw_pcf[tbar], icw_sdf[tbar]);
+  fprintf (stderr, "%s IN: icw_Rflags=%02X\n", getTimeStr(), icw_Rflags[tbar]);
+
    Eregs_Inp[0x44]  = (icw_scf[tbar] << 8)  | icw_pdf[tbar];
    Eregs_Inp[0x45]  = (icw_lcd[tbar] << 12) | (icw_pcf[tbar] << 8) | icw_sdf[tbar];
    Eregs_Inp[0x46]  =  0xF0A5;             // Display reg (tbd)
    Eregs_Inp[0x47]  =  icw_Rflags[tbar];   // ICW 32 - 47
-
+   
    return;
 }
 
