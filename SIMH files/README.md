@@ -1252,7 +1252,7 @@ NCPSYSC  SYSCNTRL OPTIONS=(MODE,                                       X
 *      UNITSZ TIMES MAXBFRU MINUS BFRPAD EQUALS MAX MESSAGE SIZE      *
 *      FOR INBOUND MESSAGES                                           *
 ***********************************************************************
-NCPHOST  HOST  INBFRS=5,           INITIAL 3705 ALLOCATION             X
+NCPHOST  HOST  INBFRS=10,          INITIAL 3705 ALLOCATION             X
                MAXBFRU=4,          VTAM BUFFER UNIT ALLOCATION         X
                UNITSZ=4016,        *                                   X
                BFRPAD=28,          VTAM(OS=28, DOS=15, ACF=0), EXTM=2  X
@@ -1278,7 +1278,7 @@ BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
                CUTOFF=1,           LIMIT NUMBER OF SUBBLOCKS           X
                CRETRY=7,           TIME OUT WILL TAKE 63 SECONDS       X
                XMITLIM=1,          TRANSMISSION LIMIT                  X
-               REPLYTO=3           REPLY TIMEOUT
+               REPLYTO=NONE        REPLY TIMEOUT
         SPACE  2
 ***********************************************************************
 *      LINE MACRO SPECIFICATION - FULL-DUPLEX, LEASED                 *
@@ -1292,7 +1292,7 @@ BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
 *                                                                     *
 ***********************************************************************
 BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
-               DUPLEX=HALF,        MODEM IS STRAPPED FOR HALF DUPLEX   X
+               DUPLEX=FULL,        MODEM IS STRAPPED FOR HALF DUPLEX   X
                SPEED=9600,         SPEED MAY BE HIGHER (SEE NOTES)     X
                NEWSYNC=NO,         CHECK MODEM REQUIREMENTS            X
                CLOCKNG=EXT,        MODEM PROVIDES CLOCKING             X
@@ -1302,12 +1302,12 @@ BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
                ISTATUS=ACTIVE,     ACF/VTAM USE ONLY                   X
                CODE=EBCDIC,        EBCDIC 3270'S ONLY                  X
                INTPRI=1,           INTERRUPT PRIORITY IS 1             X
-               POLIMIT=(1,QUEUE),                                      X
                PAUSE=1,            DELAY BETWEEN SERVICE CYCLES        X
                SERVPRI=OLD,        PRIORITY TO OLD SESSIONS            X
                SESSION=1,          SPECIFY 1 FOR EACH CLUSTER          X
-               PU=YES,             ACF/VTAM ONLY                       X
-               SSCPFM=USS3270
+               POLIMIT=(1,QUEUE),                                      X
+               SSCPFM=USS3270,                                         X
+               USSTAB=BSPUDT01
 *
          SPACE 2
 ***********************************************************************
@@ -1330,7 +1330,8 @@ BSCTERM1 TERMINAL TERM=3277,                                           X
                FEATUR2=(MODEL2,ANKEY,PFK),                             X
                ISTATUS=INACTIVE,                                       X
                ADDR=60604040,                                          X
-               POLL=40404040
+               POLL=40404040,                                          X
+               LGRAPHS=(ACCEPT,ACCEPT)
          EJECT
 ***********************************************************************
 *      GENEND DELIMITER                                               *
