@@ -287,8 +287,8 @@ void *CS2_thread(void *arg) {
 	   break;
 
 	 case 0x8:                  // Transmit initial-turn RTS on
-	   //if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
-	   //  break;
+	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
+	     break;
 	   fprintf (stderr, "%s SCAN: icw_pdf=%02X icw_scf=%02X icw_scf&0x40=%02X\n", getTimeStr(), 0xff & icw_pdf[t], 0xff & icw_scf[t], icw_scf[t]&0x40);
 	     fprintf (stderr, "%s SCAN: 1. condition=%01X icw_pdf=%02X icw_scf=%02X\n", getTimeStr(), (icw_scf[t]&0x40) == 0, 0xff & icw_pdf[t], 0xff & icw_scf[t]);
 	   if ((icw_scf[t]&0x40) == 0) {   // New char avail to xmit ?
@@ -308,8 +308,8 @@ void *CS2_thread(void *arg) {
 	   
 	 case 0x9:                  // Transmit normal
 	 case 0xA:                  // Transmit normal with new sync	   
-	   //	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
-	   //break;
+	   if ((svc_req_L2 == ON) || (lvl == 2))  // If L2 interrupt active ?
+	   break;
 	   fprintf (stderr, "%s SCAN: icw_pdf=%02X icw_scf=%02X lvl=%d\n", getTimeStr(), 0xff & icw_pdf[t], 0xff & icw_scf[t]);
 	   if ((icw_scf[t]&0x40) == 0) {   // New char avail to xmit ?
 	     transmitChar = icw_pdf[t];
