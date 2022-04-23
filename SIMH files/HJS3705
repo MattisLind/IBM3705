@@ -79,7 +79,7 @@ BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
                CUTOFF=1,           LIMIT NUMBER OF SUBBLOCKS           X
                CRETRY=7,           TIME OUT WILL TAKE 63 SECONDS       X
                XMITLIM=1,          TRANSMISSION LIMIT                  X
-               REPLYTO=NONE        REPLY TIMEOUT
+               REPLYTO=1           REPLY TIMEOUT
         SPACE  2
 ***********************************************************************
 *      LINE MACRO SPECIFICATION - FULL-DUPLEX, LEASED                 *
