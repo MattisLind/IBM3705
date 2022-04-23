@@ -1093,7 +1093,7 @@ BSC3270 GROUP  LNCTL=BSC,          SYNCHRONOUS DATA LINK               X
 *                                                                     *
 ***********************************************************************
 BSC01    LINE  ADDRESS=020,        TRANSMIT AND RECEIVE ADDRESSES      X
-               DUPLEX=FULL,        MODEM IS STRAPPED FOR HALF DUPLEX   X
+               DUPLEX=HALF,        MODEM IS STRAPPED FOR HALF DUPLEX   X
                SPEED=9600,         SPEED MAY BE HIGHER (SEE NOTES)     X
                NEWSYNC=NO,         CHECK MODEM REQUIREMENTS            X
                CLOCKNG=EXT,        MODEM PROVIDES CLOCKING             X
